@@ -1,5 +1,5 @@
-import { QueryCtx, MutationCtx } from "./_generated/server";
 import { ConvexError } from "convex/values";
+import { mutation, MutationCtx, QueryCtx } from "./_generated/server";
 
 export async function getCurrentUserOrNull(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
@@ -40,7 +40,7 @@ async function ensureUserExists(ctx: MutationCtx) {
 export async function getCurrentUserOrCrash(ctx: QueryCtx | MutationCtx) {
   let user = await getCurrentUserOrNull(ctx);
 
-  if (!user && "db" in ctx && "insert" in (ctx as any).db) {
+  if (!user && "db" in ctx && "insert" in ctx.db) {
     user = await ensureUserExists(ctx as MutationCtx);
   }
 
@@ -50,3 +50,10 @@ export async function getCurrentUserOrCrash(ctx: QueryCtx | MutationCtx) {
 
   return user;
 }
+
+export const ensureUser = mutation({
+  args: {},
+  handler: async (ctx) => {
+    return await ensureUserExists(ctx);
+  },
+});
