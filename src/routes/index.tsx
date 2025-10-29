@@ -1,9 +1,8 @@
 import { SignInButton } from "@clerk/clerk-react";
 import { convexQuery } from "@convex-dev/react-query";
-import { useMutation } from "@tanstack/react-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Authenticated, Unauthenticated, useConvexMutation } from "convex/react";
+import { Authenticated, Unauthenticated, useMutation } from "convex/react";
 import { Network, Plus } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 
@@ -44,12 +43,7 @@ function HomePage() {
 
 function ModelsList() {
   const { data: models } = useSuspenseQuery(modelsQueryOptions);
-  const createModel = useConvexMutation(api.models.create);
-  const { mutate: createNewModel, isPending } = useMutation({
-    mutationFn: async () => {
-      return await createModel({ name: "New Model" });
-    },
-  });
+  const createModel = useMutation(api.models.create);
 
   return (
     <>
@@ -57,8 +51,7 @@ function ModelsList() {
         <h2 className="text-2xl font-bold">Your Models</h2>
         <button
           className="btn btn-primary"
-          onClick={() => createNewModel()}
-          disabled={isPending}
+          onClick={() => void createModel({ name: "New Model" })}
         >
           <Plus className="w-4 h-4" />
           New Model

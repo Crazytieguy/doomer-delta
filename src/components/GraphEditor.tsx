@@ -1,4 +1,4 @@
-import { useConvexMutation } from "convex/react";
+import { useMutation } from "convex/react";
 import { Trash2, Plus } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { api } from "../../convex/_generated/api";
@@ -46,11 +46,11 @@ export function GraphEditor({ modelId, nodes, edges }: GraphEditorProps) {
 
   const svgRef = useRef<SVGSVGElement>(null);
 
-  const createNode = useConvexMutation(api.nodes.create);
-  const updateNode = useConvexMutation(api.nodes.update);
-  const deleteNode = useConvexMutation(api.nodes.remove);
-  const createEdge = useConvexMutation(api.edges.create);
-  const deleteEdge = useConvexMutation(api.edges.remove);
+  const createNode = useMutation(api.nodes.create);
+  const updateNode = useMutation(api.nodes.update);
+  const deleteNode = useMutation(api.nodes.remove);
+  const createEdge = useMutation(api.edges.create);
+  const deleteEdge = useMutation(api.edges.remove);
 
   const screenToWorld = (screenX: number, screenY: number) => {
     const rect = svgRef.current?.getBoundingClientRect();
