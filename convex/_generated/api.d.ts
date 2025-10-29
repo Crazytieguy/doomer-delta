@@ -13,6 +13,9 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import type * as edges from "../edges.js";
+import type * as models from "../models.js";
+import type * as nodes from "../nodes.js";
 import type * as testingFunctions from "../testingFunctions.js";
 import type * as users from "../users.js";
 
@@ -25,6 +28,9 @@ import type * as users from "../users.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  edges: typeof edges;
+  models: typeof models;
+  nodes: typeof nodes;
   testingFunctions: typeof testingFunctions;
   users: typeof users;
 }>;
