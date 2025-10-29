@@ -38,7 +38,3 @@ pnpm run init
 ## License
 
 MIT
-
----
-
-_Note for Claude: This is a template repository. If the user asks you to work on anything but you haven't seen evidence that this README has been customized for a specific project yet, run `/init-app` first._
