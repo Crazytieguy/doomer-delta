@@ -101,22 +101,18 @@ export const remove = mutation({
       throw new Error("Not authorized");
     }
 
-    const childEdges = await ctx.db
-      .query("edges")
-      .withIndex("by_parentId", (q) => q.eq("parentId", args.id))
+    const allNodes = await ctx.db
+      .query("nodes")
+      .withIndex("by_modelId", (q) => q.eq("modelId", node.modelId))
       .collect();
 
-    for (const edge of childEdges) {
-      await ctx.db.delete(edge._id);
-    }
-
-    const parentEdges = await ctx.db
-      .query("edges")
-      .withIndex("by_childId", (q) => q.eq("childId", args.id))
-      .collect();
-
-    for (const edge of parentEdges) {
-      await ctx.db.delete(edge._id);
+    for (const childNode of allNodes) {
+      const parentIds = Object.keys(childNode.cptEntries[0]?.parentStates || {});
+      if (parentIds.includes(args.id)) {
+        await ctx.db.patch(childNode._id, {
+          cptEntries: [{ parentStates: {}, probability: 0.5 }],
+        });
+      }
     }
 
     if (model.outputNodeId === args.id) {

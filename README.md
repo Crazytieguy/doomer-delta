@@ -25,8 +25,7 @@ pnpm dev
 ```
 ├── convex/
 │   ├── models.ts      # Model CRUD operations
-│   ├── nodes.ts       # Node management
-│   ├── edges.ts       # Edge management
+│   ├── nodes.ts       # Node management (edges stored in CPT entries)
 │   ├── schema.ts      # Database schema
 │   └── users.ts       # User authentication
 ├── src/
@@ -44,10 +43,9 @@ pnpm dev
 1. Sign in with Clerk authentication
 2. Create a new model from the home page
 3. Double-click the canvas to create nodes
-4. Click the + button on nodes to start creating edges
-5. Click another node to complete the edge connection
-6. Select nodes to edit titles, descriptions, and base probabilities
-7. Press Delete to remove selected nodes
+4. Drag from one node to another to create edges
+5. Select nodes to edit titles, descriptions, and base probabilities
+6. Press Delete or click the X to remove selected nodes or edges
 
 ## Future Enhancements
 

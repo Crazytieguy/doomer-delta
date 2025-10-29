@@ -11,9 +11,6 @@ const modelQueryOptions = (modelId: Id<"models">) =>
 const nodesQueryOptions = (modelId: Id<"models">) =>
   convexQuery(api.nodes.listByModel, { modelId });
 
-const edgesQueryOptions = (modelId: Id<"models">) =>
-  convexQuery(api.edges.listByModel, { modelId });
-
 export const Route = createFileRoute("/models/$modelId")({
   loader: async ({ context: { queryClient }, params }) => {
     if ((window as any).Clerk?.session) {
@@ -21,7 +18,6 @@ export const Route = createFileRoute("/models/$modelId")({
       await Promise.all([
         queryClient.ensureQueryData(modelQueryOptions(modelId)),
         queryClient.ensureQueryData(nodesQueryOptions(modelId)),
-        queryClient.ensureQueryData(edgesQueryOptions(modelId)),
       ]);
     }
   },
@@ -35,9 +31,6 @@ function ModelDetailPage() {
   );
   const { data: nodes } = useSuspenseQuery(
     nodesQueryOptions(modelId as Id<"models">),
-  );
-  const { data: edges } = useSuspenseQuery(
-    edgesQueryOptions(modelId as Id<"models">),
   );
 
   if (!model) {
@@ -59,7 +52,13 @@ function ModelDetailPage() {
           </div>
           <div className="stat">
             <div className="stat-title">Edges</div>
-            <div className="stat-value">{edges.length}</div>
+            <div className="stat-value">
+              {nodes.reduce(
+                (sum, node) =>
+                  sum + Object.keys(node.cptEntries[0]?.parentStates || {}).length,
+                0
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -68,7 +67,6 @@ function ModelDetailPage() {
         <GraphEditor
           modelId={modelId as Id<"models">}
           nodes={nodes}
-          edges={edges}
         />
       </div>
     </div>

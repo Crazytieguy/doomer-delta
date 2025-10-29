@@ -30,28 +30,17 @@ type Node = {
   }>;
 };
 
-type Edge = {
-  _id: Id<"edges">;
-  _creationTime: number;
-  modelId: Id<"models">;
-  parentId: Id<"nodes">;
-  childId: Id<"nodes">;
-};
-
 interface GraphEditorProps {
   modelId: Id<"models">;
   nodes: Node[];
-  edges: Edge[];
 }
 
-export function GraphEditor({ modelId, nodes: dbNodes, edges: dbEdges }: GraphEditorProps) {
+export function GraphEditor({ modelId, nodes: dbNodes }: GraphEditorProps) {
   const [selectedNode, setSelectedNode] = useState<Id<"nodes"> | null>(null);
 
   const createNode = useMutation(api.nodes.create);
   const updateNode = useMutation(api.nodes.update);
   const deleteNode = useMutation(api.nodes.remove);
-  const createEdge = useMutation(api.edges.create);
-  const deleteEdge = useMutation(api.edges.remove);
 
   const flowNodes: FlowNode[] = dbNodes.map((node) => ({
     id: node._id,
@@ -60,12 +49,15 @@ export function GraphEditor({ modelId, nodes: dbNodes, edges: dbEdges }: GraphEd
     data: { label: node.title },
   }));
 
-  const flowEdges: FlowEdge[] = dbEdges.map((edge) => ({
-    id: edge._id,
-    source: edge.parentId,
-    target: edge.childId,
-    type: "default",
-  }));
+  const flowEdges: FlowEdge[] = dbNodes.flatMap((node) => {
+    const parentIds = Object.keys(node.cptEntries[0]?.parentStates || {});
+    return parentIds.map((parentId) => ({
+      id: `${parentId}-${node._id}`,
+      source: parentId,
+      target: node._id,
+      type: "default" as const,
+    }));
+  });
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -90,24 +82,49 @@ export function GraphEditor({ modelId, nodes: dbNodes, edges: dbEdges }: GraphEd
     (changes: EdgeChange[]) => {
       changes.forEach((change) => {
         if (change.type === "remove") {
-          void deleteEdge({ id: change.id as Id<"edges"> });
+          const [parentId, childId] = change.id.split("-");
+          const childNode = dbNodes.find((n) => n._id === childId);
+          if (childNode) {
+            const newParentStates = { ...childNode.cptEntries[0]?.parentStates };
+            delete newParentStates[parentId];
+            void updateNode({
+              id: childId as Id<"nodes">,
+              cptEntries: [
+                {
+                  parentStates: newParentStates,
+                  probability: childNode.cptEntries[0]?.probability ?? 0.5,
+                },
+              ],
+            });
+          }
         }
       });
     },
-    [deleteEdge]
+    [dbNodes, updateNode]
   );
 
   const onConnect = useCallback(
     (connection: Connection) => {
       if (connection.source && connection.target) {
-        void createEdge({
-          modelId,
-          parentId: connection.source as Id<"nodes">,
-          childId: connection.target as Id<"nodes">,
-        });
+        const childNode = dbNodes.find((n) => n._id === connection.target);
+        if (childNode) {
+          const newParentStates = {
+            ...childNode.cptEntries[0]?.parentStates,
+            [connection.source]: false,
+          };
+          void updateNode({
+            id: connection.target as Id<"nodes">,
+            cptEntries: [
+              {
+                parentStates: newParentStates,
+                probability: childNode.cptEntries[0]?.probability ?? 0.5,
+              },
+            ],
+          });
+        }
       }
     },
-    [modelId, createEdge]
+    [dbNodes, updateNode]
   );
 
   const onPaneClick = useCallback((event: React.MouseEvent) => {

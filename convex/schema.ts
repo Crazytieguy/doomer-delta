@@ -23,18 +23,9 @@ export default defineSchema({
     y: v.number(),
     cptEntries: v.array(
       v.object({
-        parentStates: v.record(v.string(), v.boolean()),
+        parentStates: v.record(v.id("nodes"), v.boolean()),
         probability: v.number(),
       }),
     ),
   }).index("by_modelId", ["modelId"]),
-
-  edges: defineTable({
-    modelId: v.id("models"),
-    parentId: v.id("nodes"),
-    childId: v.id("nodes"),
-  })
-    .index("by_modelId", ["modelId"])
-    .index("by_childId", ["childId"])
-    .index("by_parentId", ["parentId"]),
 });

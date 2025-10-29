@@ -106,15 +106,6 @@ export const remove = mutation({
       await ctx.db.delete(node._id);
     }
 
-    const edges = await ctx.db
-      .query("edges")
-      .withIndex("by_modelId", (q) => q.eq("modelId", args.id))
-      .collect();
-
-    for (const edge of edges) {
-      await ctx.db.delete(edge._id);
-    }
-
     await ctx.db.delete(args.id);
   },
 });
@@ -145,32 +136,27 @@ export const clone = mutation({
     const nodeIdMap = new Map<string, string>();
 
     for (const node of nodes) {
+      const remappedCptEntries = node.cptEntries.map((entry) => {
+        const remappedParentStates: Record<string, boolean> = {};
+        for (const [oldParentId, state] of Object.entries(entry.parentStates)) {
+          const newParentId = nodeIdMap.get(oldParentId) || oldParentId;
+          remappedParentStates[newParentId] = state;
+        }
+        return {
+          parentStates: remappedParentStates,
+          probability: entry.probability,
+        };
+      });
+
       const newNodeId = await ctx.db.insert("nodes", {
         modelId: newModelId,
         title: node.title,
         description: node.description,
         x: node.x,
         y: node.y,
-        cptEntries: node.cptEntries,
+        cptEntries: remappedCptEntries,
       });
       nodeIdMap.set(node._id, newNodeId);
-    }
-
-    const edges = await ctx.db
-      .query("edges")
-      .withIndex("by_modelId", (q) => q.eq("modelId", args.id))
-      .collect();
-
-    for (const edge of edges) {
-      const newParentId = nodeIdMap.get(edge.parentId);
-      const newChildId = nodeIdMap.get(edge.childId);
-      if (newParentId && newChildId) {
-        await ctx.db.insert("edges", {
-          modelId: newModelId,
-          parentId: newParentId as any,
-          childId: newChildId as any,
-        });
-      }
     }
 
     if (model.outputNodeId) {
