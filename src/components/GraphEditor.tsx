@@ -1,6 +1,18 @@
 import { useMutation } from "convex/react";
-import { Trash2, Plus } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { Trash2 } from "lucide-react";
+import { useCallback, useState } from "react";
+import ReactFlow, {
+  Background,
+  Controls,
+  MiniMap,
+  Node as FlowNode,
+  Edge as FlowEdge,
+  Connection,
+  NodeChange,
+  EdgeChange,
+  Panel,
+} from "reactflow";
+import "reactflow/dist/style.css";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 
@@ -32,19 +44,8 @@ interface GraphEditorProps {
   edges: Edge[];
 }
 
-export function GraphEditor({ modelId, nodes, edges }: GraphEditorProps) {
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = useState(false);
-  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+export function GraphEditor({ modelId, nodes: dbNodes, edges: dbEdges }: GraphEditorProps) {
   const [selectedNode, setSelectedNode] = useState<Id<"nodes"> | null>(null);
-  const [draggingNode, setDraggingNode] = useState<Id<"nodes"> | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [isCreatingEdge, setIsCreatingEdge] = useState(false);
-  const [edgeStart, setEdgeStart] = useState<Id<"nodes"> | null>(null);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-
-  const svgRef = useRef<SVGSVGElement>(null);
 
   const createNode = useMutation(api.nodes.create);
   const updateNode = useMutation(api.nodes.update);
@@ -52,247 +53,107 @@ export function GraphEditor({ modelId, nodes, edges }: GraphEditorProps) {
   const createEdge = useMutation(api.edges.create);
   const deleteEdge = useMutation(api.edges.remove);
 
-  const screenToWorld = (screenX: number, screenY: number) => {
-    const rect = svgRef.current?.getBoundingClientRect();
-    if (!rect) return { x: 0, y: 0 };
-    return {
-      x: (screenX - rect.left - pan.x) / zoom,
-      y: (screenY - rect.top - pan.y) / zoom,
-    };
-  };
+  const flowNodes: FlowNode[] = dbNodes.map((node) => ({
+    id: node._id,
+    type: "default",
+    position: { x: node.x, y: node.y },
+    data: { label: node.title },
+  }));
 
-  const handleCanvasMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (e.target === svgRef.current) {
-      setIsPanning(true);
-      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-    }
-  };
+  const flowEdges: FlowEdge[] = dbEdges.map((edge) => ({
+    id: edge._id,
+    source: edge.parentId,
+    target: edge.childId,
+    type: "default",
+  }));
 
-  const handleCanvasMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (isPanning) {
-      setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
-    } else if (draggingNode) {
-      const worldPos = screenToWorld(e.clientX, e.clientY);
-      void updateNode({
-        id: draggingNode,
-        x: worldPos.x - dragOffset.x,
-        y: worldPos.y - dragOffset.y,
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+
+      changes.forEach((change) => {
+        if (change.type === "position" && change.position && !change.dragging) {
+          void updateNode({
+            id: change.id as Id<"nodes">,
+            x: change.position.x,
+            y: change.position.y,
+          });
+        }
+        if (change.type === "remove") {
+          void deleteNode({ id: change.id as Id<"nodes"> });
+        }
       });
-    } else if (isCreatingEdge) {
-      setMousePos({ x: e.clientX, y: e.clientY });
-    }
-  };
+    },
+    [updateNode, deleteNode]
+  );
 
-  const handleCanvasMouseUp = () => {
-    setIsPanning(false);
-    setDraggingNode(null);
-    setIsCreatingEdge(false);
-    setEdgeStart(null);
-  };
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      changes.forEach((change) => {
+        if (change.type === "remove") {
+          void deleteEdge({ id: change.id as Id<"edges"> });
+        }
+      });
+    },
+    [deleteEdge]
+  );
 
-  const handleCanvasDoubleClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (e.target === svgRef.current) {
-      const worldPos = screenToWorld(e.clientX, e.clientY);
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      if (connection.source && connection.target) {
+        void createEdge({
+          modelId,
+          parentId: connection.source as Id<"nodes">,
+          childId: connection.target as Id<"nodes">,
+        });
+      }
+    },
+    [modelId, createEdge]
+  );
+
+  const onPaneClick = useCallback((event: React.MouseEvent) => {
+    if (event.detail === 2) {
+      const reactFlowBounds = (event.target as HTMLElement).getBoundingClientRect();
+      const position = {
+        x: event.clientX - reactFlowBounds.left,
+        y: event.clientY - reactFlowBounds.top,
+      };
+
       void createNode({
         modelId,
         title: "New Node",
-        x: worldPos.x,
-        y: worldPos.y,
+        x: position.x,
+        y: position.y,
       });
     }
-  };
+  }, [modelId, createNode]);
 
-  const handleNodeMouseDown = (
-    e: React.MouseEvent,
-    nodeId: Id<"nodes">,
-    nodeX: number,
-    nodeY: number,
-  ) => {
-    e.stopPropagation();
-    const worldPos = screenToWorld(e.clientX, e.clientY);
-    setDraggingNode(nodeId);
-    setDragOffset({ x: worldPos.x - nodeX, y: worldPos.y - nodeY });
-  };
-
-  const handleNodeConnectStart = (e: React.MouseEvent, nodeId: Id<"nodes">) => {
-    e.stopPropagation();
-    setIsCreatingEdge(true);
-    setEdgeStart(nodeId);
-    setMousePos({ x: e.clientX, y: e.clientY });
-  };
-
-  const handleNodeConnectEnd = (nodeId: Id<"nodes">) => {
-    if (isCreatingEdge && edgeStart && edgeStart !== nodeId) {
-      void createEdge({
-        modelId,
-        parentId: edgeStart,
-        childId: nodeId,
-      });
-    }
-    setIsCreatingEdge(false);
-    setEdgeStart(null);
-  };
-
-  const handleWheel = (e: React.WheelEvent<SVGSVGElement>) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setZoom((z) => Math.max(0.1, Math.min(5, z * delta)));
-  };
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Delete" && selectedNode) {
-        void deleteNode({ id: selectedNode });
-        setSelectedNode(null);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedNode, deleteNode]);
+  const onNodeClick = useCallback((_event: React.MouseEvent, node: FlowNode) => {
+    setSelectedNode(node.id as Id<"nodes">);
+  }, []);
 
   return (
-    <div className="relative w-full h-[600px] bg-base-300 rounded-lg overflow-hidden">
-      <div className="absolute top-4 left-4 z-10 flex gap-2">
-        <div className="bg-base-100 px-3 py-2 rounded-lg shadow text-sm">
-          Zoom: {Math.round(zoom * 100)}%
-        </div>
-        <div className="bg-base-100 px-3 py-2 rounded-lg shadow text-sm">
-          Double-click to create node
-        </div>
-      </div>
-
-      <svg
-        ref={svgRef}
-        className="w-full h-full cursor-grab active:cursor-grabbing"
-        onMouseDown={handleCanvasMouseDown}
-        onMouseMove={handleCanvasMouseMove}
-        onMouseUp={handleCanvasMouseUp}
-        onDoubleClick={handleCanvasDoubleClick}
-        onWheel={handleWheel}
+    <div className="w-full h-[600px] bg-base-300 rounded-lg overflow-hidden">
+      <ReactFlow
+        nodes={flowNodes}
+        edges={flowEdges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onPaneClick={onPaneClick}
+        onNodeClick={onNodeClick}
+        fitView
       >
-        <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
-          {edges.map((edge) => {
-            const parent = nodes.find((n) => n._id === edge.parentId);
-            const child = nodes.find((n) => n._id === edge.childId);
-            if (!parent || !child) return null;
-
-            return (
-              <g key={edge._id}>
-                <line
-                  x1={parent.x + 50}
-                  y1={parent.y + 25}
-                  x2={child.x + 50}
-                  y2={child.y + 25}
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  markerEnd="url(#arrowhead)"
-                  className="opacity-50"
-                />
-                <circle
-                  cx={(parent.x + child.x) / 2 + 50}
-                  cy={(parent.y + child.y) / 2 + 25}
-                  r="8"
-                  fill="hsl(var(--b2))"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="cursor-pointer hover:fill-error"
-                  onClick={() => void deleteEdge({ id: edge._id })}
-                />
-              </g>
-            );
-          })}
-
-          {isCreatingEdge && edgeStart && (
-            <line
-              x1={
-                (nodes.find((n) => n._id === edgeStart)?.x ?? 0) + 50
-              }
-              y1={
-                (nodes.find((n) => n._id === edgeStart)?.y ?? 0) + 25
-              }
-              x2={(mousePos.x - pan.x) / zoom}
-              y2={(mousePos.y - pan.y) / zoom}
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeDasharray="5,5"
-              className="opacity-50"
-            />
-          )}
-
-          <defs>
-            <marker
-              id="arrowhead"
-              markerWidth="10"
-              markerHeight="10"
-              refX="9"
-              refY="3"
-              orient="auto"
-            >
-              <polygon points="0 0, 10 3, 0 6" fill="currentColor" />
-            </marker>
-          </defs>
-
-          {nodes.map((node) => (
-            <g
-              key={node._id}
-              transform={`translate(${node.x}, ${node.y})`}
-              onClick={() => setSelectedNode(node._id)}
-            >
-              <rect
-                width="100"
-                height="50"
-                rx="8"
-                fill={
-                  selectedNode === node._id
-                    ? "hsl(var(--p))"
-                    : "hsl(var(--b2))"
-                }
-                stroke="currentColor"
-                strokeWidth="2"
-                className="cursor-move"
-                onMouseDown={(e) =>
-                  handleNodeMouseDown(e, node._id, node.x, node.y)
-                }
-              />
-              <text
-                x="50"
-                y="25"
-                textAnchor="middle"
-                dominantBaseline="middle"
-                className="text-sm font-semibold pointer-events-none select-none"
-                fill="currentColor"
-              >
-                {node.title.length > 12
-                  ? node.title.substring(0, 12) + "..."
-                  : node.title}
-              </text>
-              <circle
-                cx="95"
-                cy="5"
-                r="8"
-                fill="hsl(var(--s))"
-                className="cursor-pointer"
-                onMouseDown={(e) => handleNodeConnectStart(e, node._id)}
-                onMouseUp={() => handleNodeConnectEnd(node._id)}
-              />
-              <text
-                x="95"
-                y="5"
-                textAnchor="middle"
-                dominantBaseline="middle"
-                className="text-xs font-bold pointer-events-none select-none"
-                fill="hsl(var(--sc))"
-              >
-                +
-              </text>
-            </g>
-          ))}
-        </g>
-      </svg>
+        <Background />
+        <Controls />
+        <MiniMap />
+        <Panel position="top-left" className="bg-base-100 px-3 py-2 rounded-lg shadow text-sm">
+          Double-click canvas to create node
+        </Panel>
+      </ReactFlow>
 
       {selectedNode && (
         <NodeInspector
-          node={nodes.find((n) => n._id === selectedNode)!}
+          node={dbNodes.find((n) => n._id === selectedNode)!}
           onClose={() => setSelectedNode(null)}
           onUpdate={(updates) =>
             void updateNode({ id: selectedNode, ...updates })
@@ -310,7 +171,7 @@ export function GraphEditor({ modelId, nodes, edges }: GraphEditorProps) {
 interface NodeInspectorProps {
   node: Node;
   onClose: () => void;
-  onUpdate: (updates: { title?: string; description?: string }) => void;
+  onUpdate: (updates: { title?: string; description?: string; cptEntries?: any }) => void;
   onDelete: () => void;
 }
 
@@ -378,7 +239,7 @@ function NodeInspector({
                     probability: parseFloat(e.target.value),
                   },
                 ],
-              } as any)
+              })
             }
           />
           <span className="label-text-alt opacity-70">

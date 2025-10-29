@@ -4,7 +4,6 @@ import {
   SignUpButton,
   UserButton,
   useAuth as useClerkAuth,
-  useUser,
 } from "@clerk/clerk-react";
 import type { QueryClient } from "@tanstack/react-query";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -18,12 +17,10 @@ import {
   Authenticated,
   ConvexReactClient,
   Unauthenticated,
-  useMutation,
 } from "convex/react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { Menu } from "lucide-react";
-import { useEffect, useState } from "react";
-import { api } from "../../convex/_generated/api";
+import { useState } from "react";
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -49,7 +46,6 @@ function RootComponent() {
         <QueryClientProvider client={queryClient}>
           <div className="min-h-screen flex flex-col">
             <Authenticated>
-              <EnsureUser />
               {/* Mobile sidebar drawer */}
               <div className="drawer min-h-screen">
                 <input
@@ -169,15 +165,3 @@ function RootComponent() {
   );
 }
 
-function EnsureUser() {
-  const { isLoaded, isSignedIn, user } = useUser();
-  const ensureUser = useMutation(api.users.ensureUser);
-
-  useEffect(() => {
-    if (isLoaded && isSignedIn && user) {
-      void ensureUser();
-    }
-  }, [isLoaded, isSignedIn, user, ensureUser]);
-
-  return null;
-}
