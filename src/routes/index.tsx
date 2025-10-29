@@ -9,11 +9,6 @@ import { api } from "../../convex/_generated/api";
 const modelsQueryOptions = convexQuery(api.models.list, {});
 
 export const Route = createFileRoute("/")({
-  loader: async ({ context: { queryClient } }) => {
-    if ((window as any).Clerk?.session) {
-      await queryClient.ensureQueryData(modelsQueryOptions);
-    }
-  },
   component: HomePage,
 });
 

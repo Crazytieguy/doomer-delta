@@ -15,14 +15,6 @@ const edgesQueryOptions = (modelId: Id<"models">) =>
   convexQuery(api.edges.listByModel, { modelId });
 
 export const Route = createFileRoute("/models/$modelId")({
-  loader: async ({ context: { queryClient }, params }) => {
-    const modelId = params.modelId as Id<"models">;
-    await Promise.all([
-      queryClient.ensureQueryData(modelQueryOptions(modelId)),
-      queryClient.ensureQueryData(nodesQueryOptions(modelId)),
-      queryClient.ensureQueryData(edgesQueryOptions(modelId)),
-    ]);
-  },
   component: ModelDetailPage,
 });
 
