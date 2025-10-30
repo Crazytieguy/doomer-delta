@@ -95,7 +95,7 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
       // Create complement if it doesn't exist
       if (complementRow === null) {
         const complement = createComplement(newEntries[entryIndex], parentId, value);
-        newEntries.push(complement);
+        newEntries.splice(entryIndex + 1, 0, complement);
       }
     }
     // Case 2: true ↔ false (swap complement)
