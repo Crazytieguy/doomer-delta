@@ -24,6 +24,8 @@ import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { Menu } from "lucide-react";
 import { useState, useEffect } from "react";
 import { api } from "../../convex/_generated/api";
+import { ErrorBoundary } from "../components/ErrorBoundary";
+import { ToastProvider } from "../components/ToastContext";
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -47,7 +49,8 @@ function RootComponent() {
     >
       <ConvexProviderWithClerk client={convex} useAuth={useClerkAuth}>
         <QueryClientProvider client={queryClient}>
-          <div className="min-h-screen flex flex-col">
+          <ToastProvider>
+            <div className="min-h-screen flex flex-col">
             <Authenticated>
               <EnsureUser />
               {/* Mobile sidebar drawer */}
@@ -96,7 +99,9 @@ function RootComponent() {
                   </header>
                   {/* Main content */}
                   <main className="flex-1 p-4 prose prose-invert max-w-none">
-                    <Outlet />
+                    <ErrorBoundary>
+                      <Outlet />
+                    </ErrorBoundary>
                   </main>
                   <footer className="footer footer-center p-4 text-base-content">
                     <p>© {new Date().getFullYear()} Doomer Delta</p>
@@ -155,14 +160,17 @@ function RootComponent() {
                 </div>
               </header>
               <main className="flex-1 container mx-auto p-4 prose prose-invert max-w-none">
-                <Outlet />
+                <ErrorBoundary>
+                  <Outlet />
+                </ErrorBoundary>
               </main>
               <footer className="footer footer-center p-4 text-base-content">
                 <p>© {new Date().getFullYear()} Doomer Delta</p>
               </footer>
             </Unauthenticated>
-          </div>
-          {import.meta.env.DEV && <TanStackRouterDevtools />}
+            </div>
+            {import.meta.env.DEV && <TanStackRouterDevtools />}
+          </ToastProvider>
         </QueryClientProvider>
       </ConvexProviderWithClerk>
     </ClerkProvider>

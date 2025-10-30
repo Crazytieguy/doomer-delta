@@ -5,6 +5,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Authenticated, Unauthenticated, useMutation } from "convex/react";
 import { Network, Plus } from "lucide-react";
 import { api } from "../../convex/_generated/api";
+import { useToast } from "../components/ToastContext";
 
 const modelsQueryOptions = convexQuery(api.models.list, {});
 
@@ -44,6 +45,16 @@ function HomePage() {
 function ModelsList() {
   const { data: models } = useSuspenseQuery(modelsQueryOptions);
   const createModel = useMutation(api.models.create);
+  const { showError, showSuccess } = useToast();
+
+  const handleCreateModel = async () => {
+    try {
+      await createModel({ name: "New Model" });
+      showSuccess("Model created successfully");
+    } catch (error) {
+      showError(error);
+    }
+  };
 
   return (
     <>
@@ -51,7 +62,7 @@ function ModelsList() {
         <h2 className="text-2xl font-bold">Your Models</h2>
         <button
           className="btn btn-primary"
-          onClick={() => void createModel({ name: "New Model" })}
+          onClick={() => void handleCreateModel()}
         >
           <Plus className="w-4 h-4" />
           New Model

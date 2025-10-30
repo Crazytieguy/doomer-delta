@@ -1,48 +1,15 @@
 import { Plus, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import type { Id } from "../../convex/_generated/dataModel";
-
-type ParentState = boolean | null;
-
-interface CPTEntry {
-  parentStates: Record<string, ParentState>;
-  probability: number;
-}
+import { type CPTEntry, validateCPTEntries } from "../../convex/shared/cptValidation";
 
 interface CPTEditorProps {
   cptEntries: CPTEntry[];
   parentNodes: Array<{ _id: Id<"nodes">; title: string }>;
-  onUpdate: (entries: CPTEntry[]) => void;
+  onChange: (entries: CPTEntry[]) => void;
 }
 
-function expandEntry(entry: CPTEntry, parentIds: string[]): string[] {
-  const nullIndices: number[] = [];
-  const baseValues: (boolean | null)[] = [];
-
-  for (let i = 0; i < parentIds.length; i++) {
-    const val = entry.parentStates[parentIds[i]];
-    baseValues.push(val);
-    if (val === null) {
-      nullIndices.push(i);
-    }
-  }
-
-  const numExpansions = Math.pow(2, nullIndices.length);
-  const combinations: string[] = [];
-
-  for (let i = 0; i < numExpansions; i++) {
-    const values = [...baseValues];
-    for (let j = 0; j < nullIndices.length; j++) {
-      values[nullIndices[j]] = Boolean((i >> j) & 1);
-    }
-    const key = values.map(v => v ? 'T' : 'F').join('');
-    combinations.push(key);
-  }
-
-  return combinations;
-}
-
-export function CPTEditor({ cptEntries, parentNodes, onUpdate }: CPTEditorProps) {
+export function CPTEditor({ cptEntries, parentNodes, onChange }: CPTEditorProps) {
   const [localEntries, setLocalEntries] = useState(cptEntries);
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -67,7 +34,7 @@ export function CPTEditor({ cptEntries, parentNodes, onUpdate }: CPTEditorProps)
     validateAndUpdate(newEntries);
   };
 
-  const handleParentStateChange = (entryIndex: number, parentId: string, value: ParentState) => {
+  const handleParentStateChange = (entryIndex: number, parentId: string, value: boolean | null) => {
     const newEntries = [...localEntries];
     newEntries[entryIndex] = {
       ...newEntries[entryIndex],
@@ -98,48 +65,13 @@ export function CPTEditor({ cptEntries, parentNodes, onUpdate }: CPTEditorProps)
 
   const validateAndUpdate = (entries: CPTEntry[]) => {
     setLocalEntries(entries);
+    onChange(entries);
 
-    if (parentIds.length === 0) {
-      setValidationError(null);
-      onUpdate(entries);
-      return;
-    }
-
-    const coverageCount = new Map<string, number>();
-
-    for (const entry of entries) {
-      const combinations = expandEntry(entry, parentIds);
-      for (const combo of combinations) {
-        coverageCount.set(combo, (coverageCount.get(combo) || 0) + 1);
-      }
-    }
-
-    const numCombinations = Math.pow(2, parentIds.length);
-    const uncovered: string[] = [];
-    const multiCovered: string[] = [];
-
-    for (let i = 0; i < numCombinations; i++) {
-      const key = parentIds.map((_, idx) => Boolean((i >> idx) & 1) ? 'T' : 'F').join('');
-      const count = coverageCount.get(key) || 0;
-
-      if (count === 0) {
-        uncovered.push(key);
-      } else if (count > 1) {
-        multiCovered.push(key);
-      }
-    }
-
-    if (uncovered.length > 0) {
-      setValidationError(
-        `Incomplete: ${uncovered.length} of ${numCombinations} combinations not covered. Missing: ${uncovered.slice(0, 3).join(', ')}${uncovered.length > 3 ? '...' : ''}`
-      );
-    } else if (multiCovered.length > 0) {
-      setValidationError(
-        `Conflicts: ${multiCovered.length} combinations covered by multiple rules. Conflicting: ${multiCovered.slice(0, 3).join(', ')}${multiCovered.length > 3 ? '...' : ''}`
-      );
+    const result = validateCPTEntries(entries);
+    if (!result.valid) {
+      setValidationError(result.error);
     } else {
       setValidationError(null);
-      onUpdate(entries);
     }
   };
 
@@ -197,31 +129,36 @@ export function CPTEditor({ cptEntries, parentNodes, onUpdate }: CPTEditorProps)
           <tbody>
             {localEntries.map((entry, entryIndex) => (
               <tr key={entryIndex}>
-                {parentIds.map((parentId) => (
-                  <td key={parentId}>
-                    <select
-                      className="select select-xs select-border w-full"
-                      value={
-                        entry.parentStates[parentId] === null
-                          ? "any"
-                          : entry.parentStates[parentId]
-                          ? "true"
-                          : "false"
-                      }
-                      onChange={(e) => {
-                        const value =
-                          e.target.value === "any"
-                            ? null
-                            : e.target.value === "true";
-                        handleParentStateChange(entryIndex, parentId, value);
-                      }}
-                    >
-                      <option value="any">any</option>
-                      <option value="true">true</option>
-                      <option value="false">false</option>
-                    </select>
-                  </td>
-                ))}
+                {parentIds.map((parentId) => {
+                  const parentNode = parentNodes.find(n => n._id === parentId);
+                  const parentLabel = parentNode?.title || parentId;
+                  return (
+                    <td key={parentId}>
+                      <select
+                        className="select select-xs select-border w-full"
+                        value={
+                          entry.parentStates[parentId] === null
+                            ? "any"
+                            : entry.parentStates[parentId]
+                            ? "true"
+                            : "false"
+                        }
+                        onChange={(e) => {
+                          const value =
+                            e.target.value === "any"
+                              ? null
+                              : e.target.value === "true";
+                          handleParentStateChange(entryIndex, parentId, value);
+                        }}
+                        aria-label={`Parent state for ${parentLabel}, rule ${entryIndex + 1}`}
+                      >
+                        <option value="any">any</option>
+                        <option value="true">true</option>
+                        <option value="false">false</option>
+                      </select>
+                    </td>
+                  );
+                })}
                 <td>
                   <input
                     type="number"
@@ -233,6 +170,7 @@ export function CPTEditor({ cptEntries, parentNodes, onUpdate }: CPTEditorProps)
                     onChange={(e) =>
                       handleProbabilityChange(entryIndex, parseFloat(e.target.value))
                     }
+                    aria-label={`Probability for rule ${entryIndex + 1}`}
                   />
                 </td>
                 <td>
@@ -240,6 +178,7 @@ export function CPTEditor({ cptEntries, parentNodes, onUpdate }: CPTEditorProps)
                     className="btn btn-xs btn-ghost"
                     onClick={() => handleDeleteRow(entryIndex)}
                     disabled={localEntries.length === 1}
+                    aria-label="Delete rule"
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>

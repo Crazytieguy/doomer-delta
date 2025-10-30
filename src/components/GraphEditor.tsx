@@ -50,7 +50,7 @@ export function GraphEditor({ modelId, nodes: dbNodes, selectedNode, onNodeSelec
   );
 }
 
-function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect }: GraphEditorProps) {
+function GraphEditorInner({ modelId, nodes: dbNodes, onNodeSelect }: GraphEditorProps) {
   const { screenToFlowPosition } = useReactFlow();
 
   const createNode = useMutation(api.nodes.create);
@@ -86,7 +86,7 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect 
       const currentNodeIds = new Set(currentNodes.map(n => n.id));
 
       // Remove nodes that no longer exist in DB
-      let updatedNodes = currentNodes.filter(n => dbNodeIds.has(n.id));
+      let updatedNodes = currentNodes.filter(n => dbNodeIds.has(n.id as Id<"nodes">));
 
       // Add new nodes from DB
       for (const dbNode of dbNodes) {
@@ -180,10 +180,11 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect 
       setEdges((eds) => addEdge(connection, eds));
 
       if (connection.source && connection.target) {
+        const sourceId = connection.source;
         const childNode = dbNodes.find((n) => n._id === connection.target);
         if (childNode) {
           const alreadyHasParent = childNode.cptEntries.some((entry) =>
-            connection.source in entry.parentStates
+            sourceId in entry.parentStates
           );
 
           if (alreadyHasParent) {
@@ -193,7 +194,7 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect 
           const newCptEntries = childNode.cptEntries.map((entry) => ({
             parentStates: {
               ...entry.parentStates,
-              [connection.source]: null,
+              [sourceId]: null,
             },
             probability: entry.probability,
           }));
@@ -254,7 +255,14 @@ export interface NodeInspectorProps {
   node: Node;
   allNodes: Node[];
   onClose: () => void;
-  onUpdate: (updates: { title?: string; description?: string; cptEntries?: any }) => void;
+  onUpdate: (updates: {
+    title?: string;
+    description?: string;
+    cptEntries?: Array<{
+      parentStates: Record<string, boolean | null>;
+      probability: number;
+    }>;
+  }) => void;
   onDelete: () => void;
 }
 
@@ -267,14 +275,30 @@ export function NodeInspector({
 }: NodeInspectorProps) {
   const [title, setTitle] = useState(node.title);
   const [description, setDescription] = useState(node.description ?? "");
+  const [cptEntries, setCptEntries] = useState(node.cptEntries);
   const [hasChanges, setHasChanges] = useState(false);
 
   const parentNodeIds = Object.keys(node.cptEntries[0]?.parentStates || {});
   const parentNodes = allNodes.filter((n) => parentNodeIds.includes(n._id));
 
+  const checkForChanges = (
+    newTitle: string,
+    newDescription: string,
+    newCptEntries: typeof node.cptEntries
+  ) => {
+    const titleChanged = newTitle.trim() !== node.title;
+    const descChanged = newDescription.trim() !== (node.description ?? "");
+    const cptChanged = JSON.stringify(newCptEntries) !== JSON.stringify(node.cptEntries);
+    return titleChanged || descChanged || cptChanged;
+  };
+
   const handleSave = () => {
     if (title.trim()) {
-      onUpdate({ title: title.trim(), description: description.trim() || undefined });
+      onUpdate({
+        title: title.trim(),
+        description: description.trim() || undefined,
+        cptEntries,
+      });
       setHasChanges(false);
     }
   };
@@ -282,46 +306,59 @@ export function NodeInspector({
   const handleCancel = () => {
     setTitle(node.title);
     setDescription(node.description ?? "");
+    setCptEntries(node.cptEntries);
     setHasChanges(false);
   };
 
   const handleTitleChange = (value: string) => {
     setTitle(value);
-    setHasChanges(value.trim() !== node.title || description.trim() !== (node.description ?? ""));
+    setHasChanges(checkForChanges(value, description, cptEntries));
   };
 
   const handleDescriptionChange = (value: string) => {
     setDescription(value);
-    setHasChanges(title.trim() !== node.title || value.trim() !== (node.description ?? ""));
+    setHasChanges(checkForChanges(title, value, cptEntries));
+  };
+
+  const handleCptChange = (entries: typeof node.cptEntries) => {
+    setCptEntries(entries);
+    setHasChanges(checkForChanges(title, description, entries));
   };
 
   return (
     <div className="w-full h-full flex flex-col">
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-bold text-lg">Edit Node</h3>
-        <button className="btn btn-square btn-sm btn-ghost" onClick={onClose}>
+        <button
+          className="btn btn-square btn-sm btn-ghost"
+          onClick={onClose}
+          aria-label="Close node inspector"
+        >
           ✕
         </button>
       </div>
 
       <div className="space-y-3 flex-1 overflow-y-auto">
         <div>
-          <label className="label">
+          <label htmlFor="node-title" className="label">
             <span className="label-text">Title</span>
           </label>
           <input
+            id="node-title"
             type="text"
             className="input input-border w-full"
             value={title}
             onChange={(e) => handleTitleChange(e.target.value)}
+            aria-required="true"
           />
         </div>
 
         <div>
-          <label className="label">
+          <label htmlFor="node-description" className="label">
             <span className="label-text">Description</span>
           </label>
           <textarea
+            id="node-description"
             className="textarea textarea-border w-full"
             rows={3}
             value={description}
@@ -329,27 +366,32 @@ export function NodeInspector({
           />
         </div>
 
-        {hasChanges && (
-          <div className="flex gap-2">
-            <button className="btn btn-primary btn-sm flex-1" onClick={handleSave} disabled={!title.trim()}>
-              Save
-            </button>
-            <button className="btn btn-ghost btn-sm flex-1" onClick={handleCancel}>
-              Cancel
-            </button>
-          </div>
-        )}
-
         <CPTEditor
-          cptEntries={node.cptEntries}
+          cptEntries={cptEntries}
           parentNodes={parentNodes}
-          onUpdate={(entries) => onUpdate({ cptEntries: entries })}
+          onChange={handleCptChange}
         />
 
-        <button className="btn btn-error btn-sm w-full" onClick={onDelete}>
-          <Trash2 className="w-4 h-4" />
-          Delete Node
-        </button>
+        <div className="flex gap-2">
+          <button
+            className="btn btn-primary btn-sm flex-1"
+            onClick={handleSave}
+            disabled={!hasChanges || !title.trim()}
+          >
+            Save
+          </button>
+          <button
+            className="btn btn-ghost btn-sm flex-1"
+            onClick={handleCancel}
+            disabled={!hasChanges}
+          >
+            Cancel
+          </button>
+          <button className="btn btn-error btn-sm flex-1" onClick={onDelete}>
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </button>
+        </div>
       </div>
     </div>
   );

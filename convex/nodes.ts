@@ -1,103 +1,55 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type MutationCtx } from "./_generated/server";
 import { getCurrentUserOrNull, getCurrentUserOrCrash } from "./users";
 import { ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import { type CPTEntry, validateCPTEntries } from "./shared/cptValidation";
 
 const cptEntryValidator = v.object({
   parentStates: v.record(v.id("nodes"), v.union(v.boolean(), v.null())),
   probability: v.number(),
 });
 
-type CPTEntry = {
-  parentStates: Record<string, boolean | null>;
-  probability: number;
-};
-
-function expandEntry(entry: CPTEntry, parentIds: string[]): string[] {
-  const nullIndices: number[] = [];
-  const baseValues: (boolean | null)[] = [];
-
-  for (let i = 0; i < parentIds.length; i++) {
-    const val = entry.parentStates[parentIds[i]];
-    baseValues.push(val);
-    if (val === null) {
-      nullIndices.push(i);
-    }
+function validateCPTEntriesOrThrow(entries: CPTEntry[]): void {
+  const result = validateCPTEntries(entries);
+  if (!result.valid) {
+    throw new ConvexError(result.error);
   }
-
-  const numExpansions = Math.pow(2, nullIndices.length);
-  const combinations: string[] = [];
-
-  for (let i = 0; i < numExpansions; i++) {
-    const values = [...baseValues];
-    for (let j = 0; j < nullIndices.length; j++) {
-      values[nullIndices[j]] = Boolean((i >> j) & 1);
-    }
-    const key = values.map(v => v ? 'T' : 'F').join('');
-    combinations.push(key);
-  }
-
-  return combinations;
 }
 
-function validateCPTEntries(entries: CPTEntry[]): void {
-  if (entries.length === 0) {
-    throw new ConvexError("CPT entries cannot be empty");
-  }
+async function isReachableFrom(
+  ctx: MutationCtx,
+  startNodeId: Id<"nodes">,
+  targetNodeId: Id<"nodes">,
+  modelId: Id<"models">
+): Promise<boolean> {
+  const visited = new Set<string>();
+  const queue: Id<"nodes">[] = [startNodeId];
 
-  const parentIds = Object.keys(entries[0]?.parentStates || {});
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
 
-  for (const entry of entries) {
-    if (isNaN(entry.probability) || entry.probability < 0 || entry.probability > 1) {
-      throw new ConvexError(`Invalid probability value: ${entry.probability}. Must be between 0 and 1.`);
+    if (visited.has(currentId)) continue;
+    visited.add(currentId);
+
+    if (currentId === targetNodeId) {
+      return true;
     }
 
-    const entryParentIds = Object.keys(entry.parentStates);
-    if (entryParentIds.length !== parentIds.length || !entryParentIds.every(id => parentIds.includes(id))) {
-      throw new ConvexError("All CPT entries must have the same parent nodes");
+    const currentNode = await ctx.db.get(currentId);
+    if (!currentNode || currentNode.modelId !== modelId) continue;
+
+    const parentIds = new Set<string>();
+    for (const entry of currentNode.cptEntries) {
+      Object.keys(entry.parentStates).forEach(id => parentIds.add(id));
     }
-  }
 
-  if (parentIds.length === 0) {
-    return;
-  }
-
-  const coverageCount = new Map<string, number>();
-
-  for (const entry of entries) {
-    const combinations = expandEntry(entry, parentIds);
-    for (const combo of combinations) {
-      coverageCount.set(combo, (coverageCount.get(combo) || 0) + 1);
-    }
-  }
-
-  const numCombinations = Math.pow(2, parentIds.length);
-  const uncovered: string[] = [];
-  const multiCovered: string[] = [];
-
-  for (let i = 0; i < numCombinations; i++) {
-    const key = parentIds.map((_, idx) => Boolean((i >> idx) & 1) ? 'T' : 'F').join('');
-    const count = coverageCount.get(key) || 0;
-
-    if (count === 0) {
-      uncovered.push(key);
-    } else if (count > 1) {
-      multiCovered.push(key);
+    for (const parentId of parentIds) {
+      queue.push(parentId as Id<"nodes">);
     }
   }
 
-  if (uncovered.length > 0) {
-    throw new ConvexError(
-      `CPT is incomplete: ${uncovered.length} of ${numCombinations} combinations not covered. Missing: ${uncovered.slice(0, 3).join(', ')}${uncovered.length > 3 ? '...' : ''}`
-    );
-  }
-
-  if (multiCovered.length > 0) {
-    throw new ConvexError(
-      `CPT has conflicts: ${multiCovered.length} combinations covered by multiple rules. Conflicting: ${multiCovered.slice(0, 3).join(', ')}${multiCovered.length > 3 ? '...' : ''}`
-    );
-  }
+  return false;
 }
 
 export const listByModel = query({
@@ -182,7 +134,7 @@ export const update = mutation({
     if (args.x !== undefined) updates.x = args.x;
     if (args.y !== undefined) updates.y = args.y;
     if (args.cptEntries !== undefined) {
-      validateCPTEntries(args.cptEntries);
+      validateCPTEntriesOrThrow(args.cptEntries);
 
       const parentIds = new Set<string>();
       for (const entry of args.cptEntries) {
@@ -200,6 +152,18 @@ export const update = mutation({
         }
         if ("modelId" in parentNode && parentNode.modelId !== node.modelId) {
           throw new ConvexError("Parent nodes must belong to the same model");
+        }
+
+        const wouldCreateCycle = await isReachableFrom(
+          ctx,
+          args.id,
+          parentId as Id<"nodes">,
+          node.modelId
+        );
+        if (wouldCreateCycle) {
+          throw new ConvexError(
+            `Cannot add parent: would create a cycle in the graph. Bayesian networks must be directed acyclic graphs (DAGs).`
+          );
         }
       }
 
@@ -245,7 +209,7 @@ export const remove = mutation({
         });
 
         try {
-          validateCPTEntries(newCptEntries);
+          validateCPTEntriesOrThrow(newCptEntries);
           await ctx.db.patch(childNode._id, {
             cptEntries: newCptEntries,
           });

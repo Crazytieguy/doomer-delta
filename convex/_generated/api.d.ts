@@ -15,6 +15,7 @@ import type {
 } from "convex/server";
 import type * as models from "../models.js";
 import type * as nodes from "../nodes.js";
+import type * as shared_cptValidation from "../shared/cptValidation.js";
 import type * as testingFunctions from "../testingFunctions.js";
 import type * as users from "../users.js";
 
@@ -29,6 +30,7 @@ import type * as users from "../users.js";
 declare const fullApi: ApiFromModules<{
   models: typeof models;
   nodes: typeof nodes;
+  "shared/cptValidation": typeof shared_cptValidation;
   testingFunctions: typeof testingFunctions;
   users: typeof users;
 }>;

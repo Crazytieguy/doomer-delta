@@ -36,9 +36,9 @@ test.describe("Full Stack", () => {
 
     await page.getByRole("textbox", { name: "Enter verification code" }).pressSequentially("424242");
 
-    await page.waitForSelector('button[aria-label="Open user button"]');
+    await page.waitForSelector('button[aria-label="Open user menu"]', { timeout: 10000 });
 
-    await page.getByRole("button", { name: "Open user button" }).click();
+    await page.getByRole("button", { name: "Open user menu" }).click();
     await page.getByRole("menuitem", { name: "Sign out" }).click();
 
     await page.waitForSelector('button:has-text("Sign in")');
