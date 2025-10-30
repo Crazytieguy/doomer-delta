@@ -3,7 +3,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { Copy, Globe, GlobeLock, GitFork } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { GraphEditor, NodeInspector } from "../components/GraphEditor";
@@ -31,6 +31,7 @@ export const Route = createFileRoute("/models/$modelId")({
 function ModelDetailPage() {
   const { modelId } = Route.useParams();
   const navigate = useNavigate();
+
   const { data: model } = useSuspenseQuery(
     modelQueryOptions(modelId as Id<"models">),
   );
@@ -43,9 +44,18 @@ function ModelDetailPage() {
   const [modelName, setModelName] = useState(model?.name ?? "");
   const [modelDescription, setModelDescription] = useState(model?.description ?? "");
   const [hasModelChanges, setHasModelChanges] = useState(false);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
   const isOwner = model?.isOwner ?? false;
   const isReadOnly = !isOwner;
+
+  useEffect(() => {
+    const textarea = descriptionRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = textarea.scrollHeight + 'px';
+    }
+  }, [modelDescription]);
 
   const updateNode = useMutation(api.nodes.update);
   const deleteNode = useMutation(api.nodes.remove);
@@ -146,86 +156,113 @@ function ModelDetailPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="relative z-10 flex gap-4 items-start">
-        <div className="flex-1 min-w-0">
-          {isReadOnly ? (
-            <>
-              <h1 className="text-4xl font-bold mt-0 mb-2">{modelName}</h1>
-              {modelDescription ? (
-                <p className="opacity-70 whitespace-pre-wrap mt-0">{modelDescription}</p>
-              ) : (
-                <p className="opacity-50 italic mt-0">No description</p>
-              )}
-            </>
-          ) : (
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              void handleSaveModel();
-            }}>
+      <div className="relative z-10">
+        {isReadOnly ? (
+          <>
+            <div className="flex gap-4 items-start justify-between mb-2">
+              <h1 className="text-4xl font-bold mt-0 mb-0">{modelName}</h1>
+              <div className="not-prose flex gap-2 shrink-0">
+                {isOwner && (
+                  <button
+                    className="btn btn-sm btn-outline"
+                    onClick={() => void handleTogglePublic()}
+                  >
+                    {model.isPublic ? <GlobeLock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
+                    {model.isPublic ? "Make Private" : "Make Public"}
+                  </button>
+                )}
+                <button
+                  className="btn btn-sm btn-outline"
+                  onClick={handleCopyLink}
+                >
+                  <Copy className="w-4 h-4" />
+                  Copy Link
+                </button>
+                <button
+                  className="btn btn-sm btn-outline"
+                  onClick={() => void handleClone()}
+                >
+                  <GitFork className="w-4 h-4" />
+                  Clone
+                </button>
+              </div>
+            </div>
+            {modelDescription ? (
+              <p className="opacity-70 whitespace-pre-wrap mt-0">{modelDescription}</p>
+            ) : (
+              <p className="opacity-50 italic mt-0">No description</p>
+            )}
+          </>
+        ) : (
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            void handleSaveModel();
+          }}>
+            <div className="flex gap-4 items-start justify-between mb-2">
               <input
                 type="text"
-                className="input input-ghost text-4xl font-bold w-full px-0 mb-2"
+                className="input input-ghost text-4xl font-bold w-full px-0 mb-0"
                 value={modelName}
                 onChange={(e) => handleModelNameChange(e.target.value)}
               />
-              <textarea
-                className="textarea textarea-ghost w-full px-0 opacity-70 resize-none"
-                style={{ minHeight: 'auto', lineHeight: 1.5 }}
-                rows={1}
-                placeholder="Add a description..."
-                value={modelDescription}
-                onChange={(e) => handleModelDescriptionChange(e.target.value)}
-                onInput={(e) => {
-                  const target = e.currentTarget;
-                  target.style.height = 'auto';
-                  target.style.height = target.scrollHeight + 'px';
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    void handleSaveModel();
-                  }
-                }}
-              />
-              {hasModelChanges && (
-                <div className="flex gap-2 mt-2">
-                  <button type="submit" className="btn btn-primary btn-sm" disabled={!modelName.trim()}>
-                    Save
+              <div className="not-prose flex gap-2 shrink-0">
+                {isOwner && (
+                  <button
+                    className="btn btn-sm btn-outline"
+                    onClick={() => void handleTogglePublic()}
+                  >
+                    {model.isPublic ? <GlobeLock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
+                    {model.isPublic ? "Make Private" : "Make Public"}
                   </button>
-                  <button type="button" className="btn btn-outline btn-sm" onClick={handleCancelModel}>
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </form>
-          )}
-        </div>
-
-        <div className="not-prose flex gap-2 shrink-0">
-          {isOwner && (
-            <button
-              className="btn btn-sm btn-outline"
-              onClick={() => void handleTogglePublic()}
-            >
-              {model.isPublic ? <GlobeLock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
-              {model.isPublic ? "Make Private" : "Make Public"}
-            </button>
-          )}
-          <button
-            className="btn btn-sm btn-outline"
-            onClick={handleCopyLink}
-          >
-            <Copy className="w-4 h-4" />
-            Copy Link
-          </button>
-          <button
-            className="btn btn-sm btn-outline"
-            onClick={() => void handleClone()}
-          >
-            <GitFork className="w-4 h-4" />
-            Clone
-          </button>
-        </div>
+                )}
+                <button
+                  className="btn btn-sm btn-outline"
+                  onClick={handleCopyLink}
+                >
+                  <Copy className="w-4 h-4" />
+                  Copy Link
+                </button>
+                <button
+                  className="btn btn-sm btn-outline"
+                  onClick={() => void handleClone()}
+                >
+                  <GitFork className="w-4 h-4" />
+                  Clone
+                </button>
+              </div>
+            </div>
+            <textarea
+              ref={descriptionRef}
+              className="textarea textarea-ghost w-full px-0 opacity-70 resize-none"
+              style={{ minHeight: 'auto', lineHeight: 1.5 }}
+              rows={1}
+              placeholder="Add a description..."
+              value={modelDescription}
+              onChange={(e) => handleModelDescriptionChange(e.target.value)}
+              onInput={(e) => {
+                const target = e.currentTarget;
+                target.style.height = 'auto';
+                target.style.height = target.scrollHeight + 'px';
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  void handleSaveModel();
+                }
+              }}
+            />
+            {hasModelChanges && (
+              <div className="flex gap-2 mt-2">
+                <button type="submit" className="btn btn-primary btn-sm" disabled={!modelName.trim()}>
+                  Save
+                </button>
+                <button type="button" className="btn btn-outline btn-sm" onClick={handleCancelModel}>
+                  Cancel
+                </button>
+              </div>
+            )}
+          </form>
+        )}
       </div>
 
       <div className="not-prose flex flex-1 gap-4 overflow-hidden">
