@@ -1,6 +1,6 @@
 import { useMutation } from "convex/react";
 import { Trash2 } from "lucide-react";
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { CPTEditor } from "./CPTEditor";
 import ReactFlow, {
   Controls,
@@ -132,26 +132,53 @@ function GraphEditorInner({ modelId, nodes: dbNodes, onNodeSelect }: GraphEditor
       onNodesChange(changes);
 
       changes.forEach((change) => {
-        if (change.type === "position" && change.position && !change.dragging) {
-          void updateNode({
-            id: change.id as Id<"nodes">,
-            x: change.position.x,
-            y: change.position.y,
-          });
-        }
         if (change.type === "remove") {
           void deleteNode({ id: change.id as Id<"nodes"> });
         }
       });
     },
-    [onNodesChange, updateNode, deleteNode]
+    [onNodesChange, deleteNode]
+  );
+
+  const handleNodeDragStop = useCallback(
+    (_event: React.MouseEvent, node: FlowNode) => {
+      void updateNode({
+        id: node.id as Id<"nodes">,
+        x: node.position.x,
+        y: node.position.y,
+      });
+    },
+    [updateNode]
   );
 
   const handleEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
-      onEdgesChange(changes);
+      // Filter out invalid edge removals before applying changes
+      const validChanges = changes.filter((change) => {
+        if (change.type === "remove") {
+          const [parentId, childId] = change.id.split("-");
+          const childNode = dbNodes.find((n) => n._id === childId);
 
-      changes.forEach((change) => {
+          if (childNode) {
+            // Check if all entries have "any" (null) for this parent
+            const canRemove = childNode.cptEntries.every(
+              (entry) => entry.parentStates[parentId] === null
+            );
+
+            if (!canRemove) {
+              // Prevent removal - would create conflicts or lose information
+              return false;
+            }
+          }
+        }
+        return true;
+      });
+
+      // Apply only valid changes to the UI
+      onEdgesChange(validChanges);
+
+      // Process valid removals
+      validChanges.forEach((change) => {
         if (change.type === "remove") {
           const [parentId, childId] = change.id.split("-");
           const childNode = dbNodes.find((n) => n._id === childId);
@@ -215,14 +242,17 @@ function GraphEditorInner({ modelId, nodes: dbNodes, onNodeSelect }: GraphEditor
         y: event.clientY,
       });
 
-      void createNode({
-        modelId,
-        title: "New Node",
-        x: position.x,
-        y: position.y,
-      });
+      void (async () => {
+        const newNodeId = await createNode({
+          modelId,
+          title: "New Node",
+          x: position.x,
+          y: position.y,
+        });
+        onNodeSelect(newNodeId);
+      })();
     }
-  }, [modelId, createNode, screenToFlowPosition]);
+  }, [modelId, createNode, screenToFlowPosition, onNodeSelect]);
 
   const onNodeClick = useCallback((_event: React.MouseEvent, node: FlowNode) => {
     onNodeSelect(node.id as Id<"nodes">);
@@ -236,6 +266,7 @@ function GraphEditorInner({ modelId, nodes: dbNodes, onNodeSelect }: GraphEditor
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
+        onNodeDragStop={handleNodeDragStop}
         onPaneClick={handlePaneClick}
         onNodeClick={onNodeClick}
         zoomOnDoubleClick={false}
@@ -277,9 +308,37 @@ export function NodeInspector({
   const [description, setDescription] = useState(node.description ?? "");
   const [cptEntries, setCptEntries] = useState(node.cptEntries);
   const [hasChanges, setHasChanges] = useState(false);
+  const [hasCptValidationError, setHasCptValidationError] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
-  const parentNodeIds = Object.keys(node.cptEntries[0]?.parentStates || {});
+  // Calculate parent nodes from local cptEntries state, not from node.cptEntries
+  const parentNodeIds = Object.keys(cptEntries[0]?.parentStates || {});
   const parentNodes = allNodes.filter((n) => parentNodeIds.includes(n._id));
+
+  // Sync CPT entries when they change externally (e.g., edges added/removed)
+  // This is intentional - CPT structure is determined by edges, so edge changes
+  // take precedence over local CPT edits. Title/description are NOT synced.
+  useEffect(() => {
+    setCptEntries(node.cptEntries);
+    setHasCptValidationError(false);
+  }, [node.cptEntries]);
+
+  useEffect(() => {
+    if (node.title === "New Node" && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [node.title]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   const checkForChanges = (
     newTitle: string,
@@ -293,7 +352,7 @@ export function NodeInspector({
   };
 
   const handleSave = () => {
-    if (title.trim()) {
+    if (title.trim() && !hasCptValidationError) {
       onUpdate({
         title: title.trim(),
         description: description.trim() || undefined,
@@ -308,6 +367,7 @@ export function NodeInspector({
     setDescription(node.description ?? "");
     setCptEntries(node.cptEntries);
     setHasChanges(false);
+    setHasCptValidationError(false);
   };
 
   const handleTitleChange = (value: string) => {
@@ -326,7 +386,7 @@ export function NodeInspector({
   };
 
   return (
-    <div className="w-full h-full flex flex-col">
+    <div className="w-full h-full flex flex-col px-1">
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-bold text-lg">Edit Node</h3>
         <button
@@ -338,15 +398,19 @@ export function NodeInspector({
         </button>
       </div>
 
-      <div className="space-y-3 flex-1 overflow-y-auto">
+      <form className="space-y-3 flex-1 overflow-y-auto px-1" onSubmit={(e) => {
+        e.preventDefault();
+        handleSave();
+      }}>
         <div>
           <label htmlFor="node-title" className="label">
             <span className="label-text">Title</span>
           </label>
           <input
             id="node-title"
+            ref={titleInputRef}
             type="text"
-            className="input input-border w-full"
+            className="input w-full"
             value={title}
             onChange={(e) => handleTitleChange(e.target.value)}
             aria-required="true"
@@ -359,10 +423,18 @@ export function NodeInspector({
           </label>
           <textarea
             id="node-description"
-            className="textarea textarea-border w-full"
+            className="textarea w-full"
             rows={3}
             value={description}
             onChange={(e) => handleDescriptionChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSave();
+              } else if (e.key === 'Escape') {
+                e.stopPropagation();
+              }
+            }}
           />
         </div>
 
@@ -370,29 +442,31 @@ export function NodeInspector({
           cptEntries={cptEntries}
           parentNodes={parentNodes}
           onChange={handleCptChange}
+          onValidationChange={(isValid) => setHasCptValidationError(!isValid)}
         />
 
         <div className="flex gap-2">
           <button
+            type="submit"
             className="btn btn-primary btn-sm flex-1"
-            onClick={handleSave}
-            disabled={!hasChanges || !title.trim()}
+            disabled={!hasChanges || !title.trim() || hasCptValidationError}
           >
             Save
           </button>
           <button
-            className="btn btn-ghost btn-sm flex-1"
+            type="button"
+            className="btn btn-outline btn-sm flex-1"
             onClick={handleCancel}
             disabled={!hasChanges}
           >
             Cancel
           </button>
-          <button className="btn btn-error btn-sm flex-1" onClick={onDelete}>
+          <button type="button" className="btn btn-error btn-sm flex-1" onClick={onDelete}>
             <Trash2 className="w-4 h-4" />
             Delete
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

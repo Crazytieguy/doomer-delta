@@ -101,11 +101,6 @@ function ModelDetailPage() {
   }
 
   const selectedNodeData = nodes.find((n) => n._id === selectedNode);
-  const edgeCount = nodes.reduce(
-    (sum, node) =>
-      sum + Object.keys(node.cptEntries[0]?.parentStates || {}).length,
-    0
-  );
 
   const handleNodeSelect = (nodeId: Id<"nodes"> | null) => {
     setSelectedNode(nodeId);
@@ -117,7 +112,10 @@ function ModelDetailPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div>
+      <form onSubmit={(e) => {
+        e.preventDefault();
+        void handleSaveModel();
+      }} className="relative z-10 mb-4">
         <input
           type="text"
           className="input input-ghost text-4xl font-bold w-full px-0 mb-2"
@@ -126,6 +124,7 @@ function ModelDetailPage() {
         />
         <textarea
           className="textarea textarea-ghost w-full px-0 opacity-70 resize-none"
+          style={{ minHeight: 'auto', lineHeight: 1.5 }}
           rows={1}
           placeholder="Add a description..."
           value={modelDescription}
@@ -135,23 +134,24 @@ function ModelDetailPage() {
             target.style.height = 'auto';
             target.style.height = target.scrollHeight + 'px';
           }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              void handleSaveModel();
+            }
+          }}
         />
         {hasModelChanges && (
-          <div className="flex gap-2 mb-2">
-            <button className="btn btn-primary btn-sm" onClick={() => void handleSaveModel()} disabled={!modelName.trim()}>
+          <div className="flex gap-2 mt-2">
+            <button type="submit" className="btn btn-primary btn-sm" disabled={!modelName.trim()}>
               Save
             </button>
-            <button className="btn btn-ghost btn-sm" onClick={handleCancelModel}>
+            <button type="button" className="btn btn-outline btn-sm" onClick={handleCancelModel}>
               Cancel
             </button>
           </div>
         )}
-      </div>
-
-      <div className="not-prose mb-4 flex gap-4 text-sm">
-        <span><strong>Nodes:</strong> {nodes.length}</span>
-        <span><strong>Edges:</strong> {edgeCount}</span>
-      </div>
+      </form>
 
       <div className="not-prose flex flex-1 gap-4 overflow-hidden">
         <div className="flex-1">

@@ -136,16 +136,22 @@ export const update = mutation({
     if (args.cptEntries !== undefined) {
       validateCPTEntriesOrThrow(args.cptEntries);
 
-      const parentIds = new Set<string>();
+      const newParentIds = new Set<string>();
       for (const entry of args.cptEntries) {
-        Object.keys(entry.parentStates).forEach(id => parentIds.add(id));
+        Object.keys(entry.parentStates).forEach(id => newParentIds.add(id));
       }
 
-      if (parentIds.has(args.id)) {
+      if (newParentIds.has(args.id)) {
         throw new ConvexError("Node cannot reference itself as a parent");
       }
 
-      for (const parentId of parentIds) {
+      // Get existing parent IDs to only check cycle detection for new parents
+      const existingParentIds = new Set<string>();
+      for (const entry of node.cptEntries) {
+        Object.keys(entry.parentStates).forEach(id => existingParentIds.add(id));
+      }
+
+      for (const parentId of newParentIds) {
         const parentNode = await ctx.db.get(parentId as Id<"nodes">);
         if (!parentNode) {
           throw new ConvexError(`Parent node ${parentId} not found`);
@@ -154,16 +160,19 @@ export const update = mutation({
           throw new ConvexError("Parent nodes must belong to the same model");
         }
 
-        const wouldCreateCycle = await isReachableFrom(
-          ctx,
-          args.id,
-          parentId as Id<"nodes">,
-          node.modelId
-        );
-        if (wouldCreateCycle) {
-          throw new ConvexError(
-            `Cannot add parent: would create a cycle in the graph. Bayesian networks must be directed acyclic graphs (DAGs).`
+        // Only check cycle detection for parents that are actually new
+        if (!existingParentIds.has(parentId)) {
+          const wouldCreateCycle = await isReachableFrom(
+            ctx,
+            args.id,
+            parentId as Id<"nodes">,
+            node.modelId
           );
+          if (wouldCreateCycle) {
+            throw new ConvexError(
+              `Cannot add parent: would create a cycle in the graph. Bayesian networks must be directed acyclic graphs (DAGs).`
+            );
+          }
         }
       }
 

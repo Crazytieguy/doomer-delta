@@ -1,5 +1,5 @@
 import { Plus, Trash2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { Id } from "../../convex/_generated/dataModel";
 import { type CPTEntry, validateCPTEntries } from "../../convex/shared/cptValidation";
 
@@ -7,16 +7,26 @@ interface CPTEditorProps {
   cptEntries: CPTEntry[];
   parentNodes: Array<{ _id: Id<"nodes">; title: string }>;
   onChange: (entries: CPTEntry[]) => void;
+  onValidationChange?: (isValid: boolean, error: string | null) => void;
 }
 
-export function CPTEditor({ cptEntries, parentNodes, onChange }: CPTEditorProps) {
+export function CPTEditor({ cptEntries, parentNodes, onChange, onValidationChange }: CPTEditorProps) {
   const [localEntries, setLocalEntries] = useState(cptEntries);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     setLocalEntries(cptEntries);
-    setValidationError(null);
-  }, [cptEntries]);
+
+    // Validate the new entries instead of blindly clearing errors
+    const result = validateCPTEntries(cptEntries);
+    if (!result.valid) {
+      setValidationError(result.error);
+      onValidationChange?.(false, result.error);
+    } else {
+      setValidationError(null);
+      onValidationChange?.(true, null);
+    }
+  }, [cptEntries]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const parentIds = parentNodes.map((p) => p._id);
 
@@ -70,8 +80,10 @@ export function CPTEditor({ cptEntries, parentNodes, onChange }: CPTEditorProps)
     const result = validateCPTEntries(entries);
     if (!result.valid) {
       setValidationError(result.error);
+      onValidationChange?.(false, result.error);
     } else {
       setValidationError(null);
+      onValidationChange?.(true, null);
     }
   };
 
@@ -86,7 +98,7 @@ export function CPTEditor({ cptEntries, parentNodes, onChange }: CPTEditorProps)
           step="0.01"
           min="0"
           max="1"
-          className="input input-border w-full"
+          className="input w-full"
           value={localEntries[0]?.probability ?? 0.5}
           onChange={(e) => handleProbabilityChange(0, parseFloat(e.target.value))}
         />
@@ -99,29 +111,46 @@ export function CPTEditor({ cptEntries, parentNodes, onChange }: CPTEditorProps)
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-between items-center">
-        <label className="label">
-          <span className="label-text font-semibold">Conditional Probability Table</span>
-        </label>
-        <button className="btn btn-sm btn-primary" onClick={handleAddRow}>
-          <Plus className="w-4 h-4" />
-          Add Rule
-        </button>
-      </div>
-
-      {validationError && (
-        <div className="alert alert-error">
-          <span>{validationError}</span>
-        </div>
-      )}
+      <label className="label">
+        <span className="label-text font-semibold">Conditional Probability Table</span>
+      </label>
 
       <div className="overflow-x-auto">
         <table className="table table-xs">
           <thead>
             <tr>
-              {parentNodes.map((parent) => (
-                <th key={parent._id}>{parent.title}</th>
-              ))}
+              {parentNodes.map((parent) => {
+                const canRemove = localEntries.every(
+                  (entry) => entry.parentStates[parent._id] === null
+                );
+                return (
+                  <th key={parent._id} className="relative">
+                    <div className="flex items-center gap-1">
+                      <span>{parent.title}</span>
+                      {canRemove && (
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-ghost btn-circle opacity-50 hover:opacity-100"
+                          onClick={() => {
+                            const newEntries = localEntries.map((entry) => {
+                              const newParentStates = { ...entry.parentStates };
+                              delete newParentStates[parent._id];
+                              return {
+                                parentStates: newParentStates,
+                                probability: entry.probability,
+                              };
+                            });
+                            validateAndUpdate(newEntries);
+                          }}
+                          aria-label={`Remove parent ${parent.title}`}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  </th>
+                );
+              })}
               <th>Probability</th>
               <th></th>
             </tr>
@@ -135,7 +164,7 @@ export function CPTEditor({ cptEntries, parentNodes, onChange }: CPTEditorProps)
                   return (
                     <td key={parentId}>
                       <select
-                        className="select select-xs select-border w-full"
+                        className="select select-xs w-full min-w-20"
                         value={
                           entry.parentStates[parentId] === null
                             ? "any"
@@ -165,7 +194,7 @@ export function CPTEditor({ cptEntries, parentNodes, onChange }: CPTEditorProps)
                     step="0.01"
                     min="0"
                     max="1"
-                    className="input input-xs input-border w-20"
+                    className="input input-xs w-20"
                     value={entry.probability}
                     onChange={(e) =>
                       handleProbabilityChange(entryIndex, parseFloat(e.target.value))
@@ -175,6 +204,7 @@ export function CPTEditor({ cptEntries, parentNodes, onChange }: CPTEditorProps)
                 </td>
                 <td>
                   <button
+                    type="button"
                     className="btn btn-xs btn-ghost"
                     onClick={() => handleDeleteRow(entryIndex)}
                     disabled={localEntries.length === 1}
@@ -189,10 +219,24 @@ export function CPTEditor({ cptEntries, parentNodes, onChange }: CPTEditorProps)
         </table>
       </div>
 
+      <button
+        type="button"
+        className="btn btn-xs btn-ghost gap-1"
+        onClick={handleAddRow}
+      >
+        <Plus className="w-3 h-3" />
+        Add rule
+      </button>
+
+      {validationError && (
+        <div className={`text-sm ${validationError.includes('conflicts') ? 'text-error' : 'text-warning'}`}>
+          {validationError}
+        </div>
+      )}
+
       <div className="text-xs opacity-70">
-        Each rule specifies parent states (true/false/any) and the probability. "any" matches
-        both true and false. Rules must not conflict (two rules cannot match the same parent
-        state combination).
+        Each rule specifies parent states (true/false/any) and the node probability, with "any" matching
+        both true and false.
       </div>
     </div>
   );
