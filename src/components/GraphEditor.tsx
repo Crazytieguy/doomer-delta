@@ -1,7 +1,8 @@
 import { useMutation } from "convex/react";
 import { Trash2 } from "lucide-react";
-import { useCallback, useState, useEffect, useRef } from "react";
+import { useCallback, useState, useEffect, useRef, useMemo } from "react";
 import { CPTEditor } from "./CPTEditor";
+import { SensitivityPanel } from "./SensitivityPanel";
 import ReactFlow, {
   Controls,
   MiniMap,
@@ -16,10 +17,14 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   addEdge,
+  Handle,
+  Position,
+  NodeProps,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { computeMarginalProbabilities } from "@/lib/bayesianInference";
 
 export type Node = {
   _id: Id<"nodes">;
@@ -42,6 +47,38 @@ interface GraphEditorProps {
   onNodeSelect: (nodeId: Id<"nodes"> | null) => void;
 }
 
+function ProbabilityNode({ data }: NodeProps) {
+  const probability = data.probability as number | undefined;
+  const label = data.label as string;
+
+  return (
+    <div className="px-5 py-3 shadow-lg rounded-lg bg-base-100 border-2 border-base-300 min-w-[140px] transition-all duration-200 hover:shadow-xl hover:border-primary/30">
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="w-3 h-3 !bg-base-content/40 !border-2 !border-base-100 transition-colors duration-200 hover:!bg-primary hover:scale-125"
+      />
+      <div className="text-center">
+        <div className="font-medium text-base text-base-content leading-tight">{label}</div>
+        {probability !== undefined && (
+          <div className="text-sm text-base-content/60 mt-2 tabular-nums">
+            {(probability * 100).toFixed(1)}%
+          </div>
+        )}
+      </div>
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="w-3 h-3 !bg-base-content/40 !border-2 !border-base-100 transition-colors duration-200 hover:!bg-primary hover:scale-125"
+      />
+    </div>
+  );
+}
+
+const nodeTypes = {
+  probability: ProbabilityNode,
+};
+
 export function GraphEditor({ modelId, nodes: dbNodes, selectedNode, onNodeSelect }: GraphEditorProps) {
   return (
     <ReactFlowProvider>
@@ -50,18 +87,26 @@ export function GraphEditor({ modelId, nodes: dbNodes, selectedNode, onNodeSelec
   );
 }
 
-function GraphEditorInner({ modelId, nodes: dbNodes, onNodeSelect }: GraphEditorProps) {
+function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect }: GraphEditorProps) {
   const { screenToFlowPosition } = useReactFlow();
 
   const createNode = useMutation(api.nodes.create);
   const updateNode = useMutation(api.nodes.update);
   const deleteNode = useMutation(api.nodes.remove);
 
+  const probabilities = useMemo(() => {
+    return computeMarginalProbabilities(dbNodes);
+  }, [dbNodes]);
+
   const initialNodes: FlowNode[] = dbNodes.map((node) => ({
     id: node._id,
-    type: "default",
+    type: "probability",
     position: { x: node.x, y: node.y },
-    data: { label: node.title },
+    selected: node._id === selectedNode,
+    data: {
+      label: node.title,
+      probability: probabilities.get(node._id),
+    },
   }));
 
   const initialEdges: FlowEdge[] = dbNodes.flatMap((node) => {
@@ -93,18 +138,25 @@ function GraphEditorInner({ modelId, nodes: dbNodes, onNodeSelect }: GraphEditor
         if (!currentNodeIds.has(dbNode._id)) {
           updatedNodes.push({
             id: dbNode._id,
-            type: "default",
+            type: "probability",
             position: { x: dbNode.x, y: dbNode.y },
-            data: { label: dbNode.title },
+            selected: dbNode._id === selectedNode,
+            data: {
+              label: dbNode.title,
+              probability: probabilities.get(dbNode._id),
+            },
           });
         }
       }
 
-      // Update node labels (but not positions)
+      // Update node labels, probabilities, and selection state (but not positions)
       updatedNodes = updatedNodes.map(node => {
         const dbNode = dbNodes.find(n => n._id === node.id);
-        if (dbNode && dbNode.title !== node.data.label) {
-          return { ...node, data: { label: dbNode.title } };
+        const nodeId = node.id as Id<"nodes">;
+        const probability = probabilities.get(nodeId);
+        const isSelected = nodeId === selectedNode;
+        if (dbNode && (dbNode.title !== node.data.label || probability !== node.data.probability || node.selected !== isSelected)) {
+          return { ...node, data: { label: dbNode.title, probability }, selected: isSelected };
         }
         return node;
       });
@@ -125,7 +177,7 @@ function GraphEditorInner({ modelId, nodes: dbNodes, onNodeSelect }: GraphEditor
       }));
     });
     setEdges(newEdges);
-  }, [dbNodes, setNodes, setEdges]);
+  }, [dbNodes, probabilities, selectedNode, setNodes, setEdges]);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -251,6 +303,9 @@ function GraphEditorInner({ modelId, nodes: dbNodes, onNodeSelect }: GraphEditor
         });
         onNodeSelect(newNodeId);
       })();
+    } else if (event.detail === 1) {
+      // Single click on pane - deselect node and close sidebar
+      onNodeSelect(null);
     }
   }, [modelId, createNode, screenToFlowPosition, onNodeSelect]);
 
@@ -263,6 +318,7 @@ function GraphEditorInner({ modelId, nodes: dbNodes, onNodeSelect }: GraphEditor
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        nodeTypes={nodeTypes}
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
@@ -304,6 +360,7 @@ export function NodeInspector({
   onUpdate,
   onDelete,
 }: NodeInspectorProps) {
+  const [activeTab, setActiveTab] = useState<"edit" | "sensitivity">("edit");
   const [title, setTitle] = useState(node.title);
   const [description, setDescription] = useState(node.description ?? "");
   const [cptEntries, setCptEntries] = useState(node.cptEntries);
@@ -388,7 +445,22 @@ export function NodeInspector({
   return (
     <div className="w-full h-full flex flex-col px-1">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="font-bold text-lg">Edit Node</h3>
+        <div role="tablist" className="tabs tabs-lift flex-1">
+          <button
+            role="tab"
+            className={`tab ${activeTab === "edit" ? "tab-active" : ""}`}
+            onClick={() => setActiveTab("edit")}
+          >
+            Edit
+          </button>
+          <button
+            role="tab"
+            className={`tab ${activeTab === "sensitivity" ? "tab-active" : ""}`}
+            onClick={() => setActiveTab("sensitivity")}
+          >
+            Sensitivity
+          </button>
+        </div>
         <button
           className="btn btn-square btn-sm btn-ghost"
           onClick={onClose}
@@ -398,10 +470,11 @@ export function NodeInspector({
         </button>
       </div>
 
-      <form className="space-y-3 flex-1 overflow-y-auto px-1" onSubmit={(e) => {
-        e.preventDefault();
-        handleSave();
-      }}>
+      {activeTab === "edit" ? (
+        <form className="space-y-3 flex-1 overflow-y-auto px-1" onSubmit={(e) => {
+          e.preventDefault();
+          handleSave();
+        }}>
         <div>
           <label htmlFor="node-title" className="label">
             <span className="label-text">Title</span>
@@ -445,28 +518,33 @@ export function NodeInspector({
           onValidationChange={(isValid) => setHasCptValidationError(!isValid)}
         />
 
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            className="btn btn-primary btn-sm flex-1"
-            disabled={!hasChanges || !title.trim() || hasCptValidationError}
-          >
-            Save
-          </button>
-          <button
-            type="button"
-            className="btn btn-outline btn-sm flex-1"
-            onClick={handleCancel}
-            disabled={!hasChanges}
-          >
-            Cancel
-          </button>
-          <button type="button" className="btn btn-error btn-sm flex-1" onClick={onDelete}>
-            <Trash2 className="w-4 h-4" />
-            Delete
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              className="btn btn-primary btn-sm flex-1"
+              disabled={!hasChanges || !title.trim() || hasCptValidationError}
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm flex-1"
+              onClick={handleCancel}
+              disabled={!hasChanges}
+            >
+              Cancel
+            </button>
+            <button type="button" className="btn btn-error btn-sm flex-1" onClick={onDelete}>
+              <Trash2 className="w-4 h-4" />
+              Delete
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="flex-1 overflow-y-auto px-1">
+          <SensitivityPanel nodes={allNodes} targetNodeId={node._id} />
         </div>
-      </form>
+      )}
     </div>
   );
 }
