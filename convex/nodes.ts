@@ -19,10 +19,13 @@ function validateCPTEntriesOrThrow(entries: CPTEntry[]): void {
 
 async function isReachableFrom(
   ctx: MutationCtx,
-  startNodeId: Id<"nodes">,
-  targetNodeId: Id<"nodes">,
-  modelId: Id<"models">
+  args: {
+    startNodeId: Id<"nodes">;
+    targetNodeId: Id<"nodes">;
+    modelId: Id<"models">;
+  }
 ): Promise<boolean> {
+  const { startNodeId, targetNodeId, modelId } = args;
   const visited = new Set<string>();
   const queue: Id<"nodes">[] = [startNodeId];
 
@@ -162,12 +165,11 @@ export const update = mutation({
 
         // Only check cycle detection for parents that are actually new
         if (!existingParentIds.has(parentId)) {
-          const wouldCreateCycle = await isReachableFrom(
-            ctx,
-            args.id,
-            parentId as Id<"nodes">,
-            node.modelId
-          );
+          const wouldCreateCycle = await isReachableFrom(ctx, {
+            startNodeId: parentId as Id<"nodes">,
+            targetNodeId: args.id,
+            modelId: node.modelId,
+          });
           if (wouldCreateCycle) {
             throw new ConvexError(
               `Cannot add parent: would create a cycle in the graph. Bayesian networks must be directed acyclic graphs (DAGs).`

@@ -118,7 +118,7 @@ function ModelDetailPage() {
     try {
       const newModelId = await cloneModel({ id: modelId as Id<"models"> });
       showSuccess("Model cloned successfully");
-      navigate({ to: "/models/$modelId", params: { modelId: newModelId } });
+      void navigate({ to: "/models/$modelId", params: { modelId: newModelId } });
     } catch (error) {
       showError(error);
     }
