@@ -246,7 +246,7 @@ function ModelDetailPage() {
               onClick={handleCloseSidebar}
               onTouchMove={(e) => e.preventDefault()}
             />
-            <div className="fixed inset-y-0 right-0 w-[85vw] max-w-sm sm:relative sm:w-96 sm:max-w-96 h-full bg-base-100 p-6 rounded-lg overflow-y-auto border border-base-300 z-30 sm:z-auto">
+            <div className="fixed inset-y-0 right-0 w-[85vw] max-w-sm sm:relative sm:w-auto sm:min-w-[28rem] sm:max-w-3xl h-full bg-base-100 p-6 rounded-lg overflow-y-auto border border-base-300 z-30 sm:z-auto">
               <NodeInspector
                 key={selectedNode}
                 node={selectedNodeData}

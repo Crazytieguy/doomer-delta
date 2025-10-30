@@ -1,7 +1,7 @@
-import { Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Id } from "../../convex/_generated/dataModel";
-import { type CPTEntry, validateCPTEntries } from "../../convex/shared/cptValidation";
+import type { CPTEntry } from "../../convex/shared/cptValidation";
 
 interface CPTEditorProps {
   cptEntries: CPTEntry[];
@@ -11,50 +11,141 @@ interface CPTEditorProps {
   isReadOnly?: boolean;
 }
 
-export function CPTEditor({ cptEntries, parentNodes, onChange, onValidationChange, isReadOnly }: CPTEditorProps) {
+export function CPTEditor({ cptEntries, parentNodes, onChange, isReadOnly }: CPTEditorProps) {
   const [localEntries, setLocalEntries] = useState(cptEntries);
-  const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     setLocalEntries(cptEntries);
-
-    // Validate the new entries instead of blindly clearing errors
-    const result = validateCPTEntries(cptEntries);
-    if (!result.valid) {
-      setValidationError(result.error);
-      onValidationChange?.(false, result.error);
-    } else {
-      setValidationError(null);
-      onValidationChange?.(true, null);
-    }
-  }, [cptEntries]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cptEntries]);
 
   const parentIds = parentNodes.map((p) => p._id);
 
-  const handleAddRow = () => {
-    const newEntry: CPTEntry = {
-      parentStates: Object.fromEntries(parentIds.map((id) => [id, null])),
-      probability: 0.5,
-    };
-    const newEntries = [...localEntries, newEntry];
-    validateAndUpdate(newEntries);
+  // Helper: Find complement row (same parentStates except specified parent is opposite)
+  const findComplementRow = (entries: CPTEntry[], entryIndex: number, parentId: string): number | null => {
+    const targetEntry = entries[entryIndex];
+    const targetValue = targetEntry.parentStates[parentId];
+
+    // Only true/false have complements
+    if (targetValue === null) return null;
+
+    for (let i = 0; i < entries.length; i++) {
+      if (i === entryIndex) continue;
+
+      const entry = entries[i];
+      let isComplement = true;
+
+      for (const pid of Object.keys(targetEntry.parentStates)) {
+        if (pid === parentId) {
+          // This parent should be opposite
+          if (entry.parentStates[pid] !== !targetValue) {
+            isComplement = false;
+            break;
+          }
+        } else {
+          // All other parents should match
+          if (entry.parentStates[pid] !== targetEntry.parentStates[pid]) {
+            isComplement = false;
+            break;
+          }
+        }
+      }
+
+      if (isComplement) return i;
+    }
+
+    return null;
   };
 
-  const handleDeleteRow = (index: number) => {
-    const newEntries = localEntries.filter((_, i) => i !== index);
-    validateAndUpdate(newEntries);
+  // Helper: Create complement entry
+  const createComplement = (entry: CPTEntry, parentId: string, currentValue: boolean): CPTEntry => {
+    return {
+      parentStates: {
+        ...entry.parentStates,
+        [parentId]: !currentValue,
+      },
+      probability: entry.probability, // Copy same probability
+    };
   };
 
   const handleParentStateChange = (entryIndex: number, parentId: string, value: boolean | null) => {
     const newEntries = [...localEntries];
-    newEntries[entryIndex] = {
-      ...newEntries[entryIndex],
-      parentStates: {
-        ...newEntries[entryIndex].parentStates,
-        [parentId]: value,
-      },
-    };
-    validateAndUpdate(newEntries);
+    const currentEntry = newEntries[entryIndex];
+    const oldValue = currentEntry.parentStates[parentId];
+
+    // Case 1: any → true/false (create complement)
+    if (oldValue === null && value !== null) {
+      const complementRow = findComplementRow(newEntries, entryIndex, parentId);
+
+      // Update current row
+      newEntries[entryIndex] = {
+        ...currentEntry,
+        parentStates: {
+          ...currentEntry.parentStates,
+          [parentId]: value,
+        },
+      };
+
+      // Create complement if it doesn't exist
+      if (complementRow === null) {
+        const complement = createComplement(newEntries[entryIndex], parentId, value);
+        newEntries.push(complement);
+      }
+    }
+    // Case 2: true ↔ false (swap complement)
+    else if (oldValue !== null && value !== null && oldValue !== value) {
+      const complementRow = findComplementRow(newEntries, entryIndex, parentId);
+
+      // Update current row
+      newEntries[entryIndex] = {
+        ...currentEntry,
+        parentStates: {
+          ...currentEntry.parentStates,
+          [parentId]: value,
+        },
+      };
+
+      // Swap complement row if it exists
+      if (complementRow !== null) {
+        newEntries[complementRow] = {
+          ...newEntries[complementRow],
+          parentStates: {
+            ...newEntries[complementRow].parentStates,
+            [parentId]: !value,
+          },
+        };
+      }
+    }
+    // Case 3: true/false → any (delete complement)
+    else if (oldValue !== null && value === null) {
+      const complementRow = findComplementRow(newEntries, entryIndex, parentId);
+
+      // Update current row
+      newEntries[entryIndex] = {
+        ...currentEntry,
+        parentStates: {
+          ...currentEntry.parentStates,
+          [parentId]: value,
+        },
+      };
+
+      // Delete complement row if it exists
+      if (complementRow !== null) {
+        newEntries.splice(complementRow, 1);
+      }
+    }
+    // Case 4: any → any (no change, shouldn't happen but handle it)
+    else {
+      newEntries[entryIndex] = {
+        ...currentEntry,
+        parentStates: {
+          ...currentEntry.parentStates,
+          [parentId]: value,
+        },
+      };
+    }
+
+    setLocalEntries(newEntries);
+    onChange(newEntries);
   };
 
   const handleProbabilityChange = (entryIndex: number, value: number) => {
@@ -71,21 +162,24 @@ export function CPTEditor({ cptEntries, parentNodes, onChange, onValidationChang
       ...newEntries[entryIndex],
       probability: validValue,
     };
-    validateAndUpdate(newEntries);
+    setLocalEntries(newEntries);
+    onChange(newEntries);
   };
 
-  const validateAndUpdate = (entries: CPTEntry[]) => {
-    setLocalEntries(entries);
-    onChange(entries);
+  const handleMoveRowUp = (index: number) => {
+    if (index === 0) return;
+    const newEntries = [...localEntries];
+    [newEntries[index - 1], newEntries[index]] = [newEntries[index], newEntries[index - 1]];
+    setLocalEntries(newEntries);
+    onChange(newEntries);
+  };
 
-    const result = validateCPTEntries(entries);
-    if (!result.valid) {
-      setValidationError(result.error);
-      onValidationChange?.(false, result.error);
-    } else {
-      setValidationError(null);
-      onValidationChange?.(true, null);
-    }
+  const handleMoveRowDown = (index: number) => {
+    if (index === localEntries.length - 1) return;
+    const newEntries = [...localEntries];
+    [newEntries[index], newEntries[index + 1]] = [newEntries[index + 1], newEntries[index]];
+    setLocalEntries(newEntries);
+    onChange(newEntries);
   };
 
   if (parentNodes.length === 0) {
@@ -166,12 +260,6 @@ export function CPTEditor({ cptEntries, parentNodes, onChange, onValidationChang
           </table>
         </div>
 
-        {validationError && (
-          <div className={`text-sm ${validationError.includes('conflicts') ? 'text-error' : 'text-warning'}`}>
-            {validationError}
-          </div>
-        )}
-
         <div className="text-xs opacity-70">
           Each rule specifies parent states (true/false/any) and the node probability, with "any" matching
           both true and false.
@@ -190,6 +278,7 @@ export function CPTEditor({ cptEntries, parentNodes, onChange, onValidationChang
         <table className="table table-xs">
           <thead>
             <tr>
+              <th></th>
               {parentNodes.map((parent) => {
                 const canRemove = localEntries.every(
                   (entry) => entry.parentStates[parent._id] === null
@@ -211,7 +300,8 @@ export function CPTEditor({ cptEntries, parentNodes, onChange, onValidationChang
                                 probability: entry.probability,
                               };
                             });
-                            validateAndUpdate(newEntries);
+                            setLocalEntries(newEntries);
+                            onChange(newEntries);
                           }}
                           aria-label={`Remove parent ${parent.title}`}
                         >
@@ -223,26 +313,46 @@ export function CPTEditor({ cptEntries, parentNodes, onChange, onValidationChang
                 );
               })}
               <th>Probability</th>
-              <th></th>
             </tr>
           </thead>
           <tbody>
             {localEntries.map((entry, entryIndex) => (
               <tr key={entryIndex}>
+                <td className="!p-0">
+                  <div className="flex">
+                    <button
+                      type="button"
+                      className="btn btn-xs btn-ghost px-1"
+                      onClick={() => handleMoveRowUp(entryIndex)}
+                      disabled={entryIndex === 0}
+                      aria-label="Move rule up"
+                    >
+                      <ArrowUp className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-xs btn-ghost px-1"
+                      onClick={() => handleMoveRowDown(entryIndex)}
+                      disabled={entryIndex === localEntries.length - 1}
+                      aria-label="Move rule down"
+                    >
+                      <ArrowDown className="w-3 h-3" />
+                    </button>
+                  </div>
+                </td>
                 {parentIds.map((parentId) => {
                   const parentNode = parentNodes.find(n => n._id === parentId);
                   const parentLabel = parentNode?.title || parentId;
+                  const currentValue = entry.parentStates[parentId];
+                  const hasComplement = currentValue !== null && findComplementRow(localEntries, entryIndex, parentId) !== null;
+                  const isDisabled = currentValue !== null && !hasComplement;
+                  const displayValue = currentValue === null ? "any" : currentValue ? "true" : "false";
+
                   return (
                     <td key={parentId}>
                       <select
-                        className="select select-xs w-full min-w-20"
-                        value={
-                          entry.parentStates[parentId] === null
-                            ? "any"
-                            : entry.parentStates[parentId]
-                            ? "true"
-                            : "false"
-                        }
+                        className="select select-xs w-full min-w-20 disabled:bg-base-100 disabled:text-base-content/80 disabled:[background-image:none]"
+                        value={displayValue}
                         onChange={(e) => {
                           const value =
                             e.target.value === "any"
@@ -250,6 +360,7 @@ export function CPTEditor({ cptEntries, parentNodes, onChange, onValidationChang
                               : e.target.value === "true";
                           handleParentStateChange(entryIndex, parentId, value);
                         }}
+                        disabled={isDisabled}
                         aria-label={`Parent state for ${parentLabel}, rule ${entryIndex + 1}`}
                       >
                         <option value="any">any</option>
@@ -273,37 +384,11 @@ export function CPTEditor({ cptEntries, parentNodes, onChange, onValidationChang
                     aria-label={`Probability for rule ${entryIndex + 1}`}
                   />
                 </td>
-                <td>
-                  <button
-                    type="button"
-                    className="btn btn-xs btn-ghost"
-                    onClick={() => handleDeleteRow(entryIndex)}
-                    disabled={localEntries.length === 1}
-                    aria-label="Delete rule"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-
-      <button
-        type="button"
-        className="btn btn-xs btn-ghost gap-1"
-        onClick={handleAddRow}
-      >
-        <Plus className="w-3 h-3" />
-        Add rule
-      </button>
-
-      {validationError && (
-        <div className={`text-sm ${validationError.includes('conflicts') ? 'text-error' : 'text-warning'}`}>
-          {validationError}
-        </div>
-      )}
 
       <div className="text-xs opacity-70">
         Each rule specifies parent states (true/false/any) and the node probability, with "any" matching
