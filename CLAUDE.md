@@ -212,6 +212,7 @@ Always follow the guidelines in this file, unless explicitly told otherwise by t
 - Status colors: `info`, `success`, `warning`, `error`
 - Each color has matching `-content` variant for contrasting text
 - Custom themes use OKLCH format, create at [theme generator](https://daisyui.com/theme-generator/)
+- When styling third-party components (e.g., ReactFlow), use `@apply` with daisyUI/Tailwind utilities for theme consistency
 
 ## Other Guidelines
 

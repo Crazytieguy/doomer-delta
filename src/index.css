@@ -10,3 +10,86 @@
 body {
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ReactFlow theming to match daisyUI */
+.react-flow {
+  @apply bg-base-300;
+}
+
+.react-flow .react-flow__node {
+  @apply bg-base-100 text-base-content border-base-300;
+}
+
+.react-flow .react-flow__node.selected {
+  @apply shadow-[0_0_0_2.5px] shadow-primary;
+}
+
+.react-flow .react-flow__node:hover {
+  @apply shadow-md;
+}
+
+.react-flow .react-flow__handle {
+  @apply bg-base-content/50 border-base-100;
+}
+
+.react-flow .react-flow__handle:hover {
+  @apply bg-primary;
+}
+
+.react-flow .react-flow__edge-path {
+  @apply stroke-base-content/40;
+}
+
+.react-flow .react-flow__edge.selected .react-flow__edge-path {
+  @apply stroke-primary;
+}
+
+.react-flow .react-flow__minimap {
+  @apply bg-base-100 border-base-300 shadow-md;
+}
+
+.react-flow .react-flow__minimap svg {
+  @apply bg-base-300;
+}
+
+.react-flow .react-flow__minimap-mask {
+  @apply fill-base-100;
+  fill-opacity: 0.8;
+}
+
+.react-flow .react-flow__minimap-node {
+  @apply fill-base-100;
+  opacity: 0.8;
+}
+
+.react-flow .react-flow__controls {
+  @apply bg-base-200 border-base-300 shadow-md;
+}
+
+.react-flow .react-flow__controls button {
+  @apply bg-base-200 text-base-content border-b-base-300;
+}
+
+.react-flow .react-flow__controls button svg {
+  @apply fill-current;
+}
+
+.react-flow .react-flow__controls button:hover:not(:disabled) {
+  @apply bg-base-300;
+}
+
+.react-flow .react-flow__controls button:disabled {
+  @apply opacity-30;
+}
+
+.react-flow .react-flow__attribution {
+  @apply bg-base-100 shadow;
+}
+
+.react-flow .react-flow__attribution a {
+  @apply text-base-content opacity-70;
+}
+
+.react-flow .react-flow__attribution a:hover {
+  @apply opacity-100;
+}

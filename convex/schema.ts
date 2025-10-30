@@ -13,7 +13,9 @@ export default defineSchema({
     ownerId: v.id("users"),
     outputNodeId: v.optional(v.id("nodes")),
     isPublic: v.boolean(),
-  }).index("by_ownerId", ["ownerId"]),
+  })
+    .index("by_ownerId", ["ownerId"])
+    .index("by_isPublic", ["isPublic"]),
 
   nodes: defineTable({
     modelId: v.id("models"),
@@ -23,7 +25,7 @@ export default defineSchema({
     y: v.number(),
     cptEntries: v.array(
       v.object({
-        parentStates: v.record(v.id("nodes"), v.boolean()),
+        parentStates: v.record(v.id("nodes"), v.union(v.boolean(), v.null())),
         probability: v.number(),
       }),
     ),

@@ -1,8 +1,8 @@
 import { useMutation } from "convex/react";
 import { Trash2 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
+import { CPTEditor } from "./CPTEditor";
 import ReactFlow, {
-  Background,
   Controls,
   MiniMap,
   Node as FlowNode,
@@ -11,12 +11,17 @@ import ReactFlow, {
   NodeChange,
   EdgeChange,
   Panel,
+  ReactFlowProvider,
+  useReactFlow,
+  useNodesState,
+  useEdgesState,
+  addEdge,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 
-type Node = {
+export type Node = {
   _id: Id<"nodes">;
   _creationTime: number;
   modelId: Id<"models">;
@@ -25,7 +30,7 @@ type Node = {
   x: number;
   y: number;
   cptEntries: Array<{
-    parentStates: Record<string, boolean>;
+    parentStates: Record<string, boolean | null>;
     probability: number;
   }>;
 };
@@ -33,25 +38,38 @@ type Node = {
 interface GraphEditorProps {
   modelId: Id<"models">;
   nodes: Node[];
+  selectedNode: Id<"nodes"> | null;
+  onNodeSelect: (nodeId: Id<"nodes"> | null) => void;
 }
 
-export function GraphEditor({ modelId, nodes: dbNodes }: GraphEditorProps) {
-  const [selectedNode, setSelectedNode] = useState<Id<"nodes"> | null>(null);
+export function GraphEditor({ modelId, nodes: dbNodes, selectedNode, onNodeSelect }: GraphEditorProps) {
+  return (
+    <ReactFlowProvider>
+      <GraphEditorInner modelId={modelId} nodes={dbNodes} selectedNode={selectedNode} onNodeSelect={onNodeSelect} />
+    </ReactFlowProvider>
+  );
+}
+
+function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect }: GraphEditorProps) {
+  const { screenToFlowPosition } = useReactFlow();
 
   const createNode = useMutation(api.nodes.create);
   const updateNode = useMutation(api.nodes.update);
   const deleteNode = useMutation(api.nodes.remove);
 
-  const flowNodes: FlowNode[] = dbNodes.map((node) => ({
+  const initialNodes: FlowNode[] = dbNodes.map((node) => ({
     id: node._id,
     type: "default",
     position: { x: node.x, y: node.y },
     data: { label: node.title },
   }));
 
-  const flowEdges: FlowEdge[] = dbNodes.flatMap((node) => {
-    const parentIds = Object.keys(node.cptEntries[0]?.parentStates || {});
-    return parentIds.map((parentId) => ({
+  const initialEdges: FlowEdge[] = dbNodes.flatMap((node) => {
+    const allParentIds = new Set<string>();
+    for (const entry of node.cptEntries) {
+      Object.keys(entry.parentStates).forEach(id => allParentIds.add(id));
+    }
+    return Array.from(allParentIds).map((parentId) => ({
       id: `${parentId}-${node._id}`,
       source: parentId,
       target: node._id,
@@ -59,8 +77,59 @@ export function GraphEditor({ modelId, nodes: dbNodes }: GraphEditorProps) {
     }));
   });
 
-  const onNodesChange = useCallback(
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  useEffect(() => {
+    setNodes((currentNodes) => {
+      const dbNodeIds = new Set(dbNodes.map(n => n._id));
+      const currentNodeIds = new Set(currentNodes.map(n => n.id));
+
+      // Remove nodes that no longer exist in DB
+      let updatedNodes = currentNodes.filter(n => dbNodeIds.has(n.id));
+
+      // Add new nodes from DB
+      for (const dbNode of dbNodes) {
+        if (!currentNodeIds.has(dbNode._id)) {
+          updatedNodes.push({
+            id: dbNode._id,
+            type: "default",
+            position: { x: dbNode.x, y: dbNode.y },
+            data: { label: dbNode.title },
+          });
+        }
+      }
+
+      // Update node labels (but not positions)
+      updatedNodes = updatedNodes.map(node => {
+        const dbNode = dbNodes.find(n => n._id === node.id);
+        if (dbNode && dbNode.title !== node.data.label) {
+          return { ...node, data: { label: dbNode.title } };
+        }
+        return node;
+      });
+
+      return updatedNodes;
+    });
+
+    const newEdges: FlowEdge[] = dbNodes.flatMap((node) => {
+      const allParentIds = new Set<string>();
+      for (const entry of node.cptEntries) {
+        Object.keys(entry.parentStates).forEach(id => allParentIds.add(id));
+      }
+      return Array.from(allParentIds).map((parentId) => ({
+        id: `${parentId}-${node._id}`,
+        source: parentId,
+        target: node._id,
+        type: "default" as const,
+      }));
+    });
+    setEdges(newEdges);
+  }, [dbNodes, setNodes, setEdges]);
+
+  const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
+      onNodesChange(changes);
 
       changes.forEach((change) => {
         if (change.type === "position" && change.position && !change.dragging) {
@@ -75,65 +144,75 @@ export function GraphEditor({ modelId, nodes: dbNodes }: GraphEditorProps) {
         }
       });
     },
-    [updateNode, deleteNode]
+    [onNodesChange, updateNode, deleteNode]
   );
 
-  const onEdgesChange = useCallback(
+  const handleEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
+      onEdgesChange(changes);
+
       changes.forEach((change) => {
         if (change.type === "remove") {
           const [parentId, childId] = change.id.split("-");
           const childNode = dbNodes.find((n) => n._id === childId);
           if (childNode) {
-            const newParentStates = { ...childNode.cptEntries[0]?.parentStates };
-            delete newParentStates[parentId];
+            const newCptEntries = childNode.cptEntries.map((entry) => {
+              const newParentStates = { ...entry.parentStates };
+              delete newParentStates[parentId];
+              return {
+                parentStates: newParentStates,
+                probability: entry.probability,
+              };
+            });
             void updateNode({
               id: childId as Id<"nodes">,
-              cptEntries: [
-                {
-                  parentStates: newParentStates,
-                  probability: childNode.cptEntries[0]?.probability ?? 0.5,
-                },
-              ],
+              cptEntries: newCptEntries,
             });
           }
         }
       });
     },
-    [dbNodes, updateNode]
+    [onEdgesChange, dbNodes, updateNode]
   );
 
-  const onConnect = useCallback(
+  const handleConnect = useCallback(
     (connection: Connection) => {
+      setEdges((eds) => addEdge(connection, eds));
+
       if (connection.source && connection.target) {
         const childNode = dbNodes.find((n) => n._id === connection.target);
         if (childNode) {
-          const newParentStates = {
-            ...childNode.cptEntries[0]?.parentStates,
-            [connection.source]: false,
-          };
+          const alreadyHasParent = childNode.cptEntries.some((entry) =>
+            connection.source in entry.parentStates
+          );
+
+          if (alreadyHasParent) {
+            return;
+          }
+
+          const newCptEntries = childNode.cptEntries.map((entry) => ({
+            parentStates: {
+              ...entry.parentStates,
+              [connection.source]: null,
+            },
+            probability: entry.probability,
+          }));
           void updateNode({
             id: connection.target as Id<"nodes">,
-            cptEntries: [
-              {
-                parentStates: newParentStates,
-                probability: childNode.cptEntries[0]?.probability ?? 0.5,
-              },
-            ],
+            cptEntries: newCptEntries,
           });
         }
       }
     },
-    [dbNodes, updateNode]
+    [setEdges, dbNodes, updateNode]
   );
 
-  const onPaneClick = useCallback((event: React.MouseEvent) => {
+  const handlePaneClick = useCallback((event: React.MouseEvent) => {
     if (event.detail === 2) {
-      const reactFlowBounds = (event.target as HTMLElement).getBoundingClientRect();
-      const position = {
-        x: event.clientX - reactFlowBounds.left,
-        y: event.clientY - reactFlowBounds.top,
-      };
+      const position = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
 
       void createNode({
         modelId,
@@ -142,67 +221,82 @@ export function GraphEditor({ modelId, nodes: dbNodes }: GraphEditorProps) {
         y: position.y,
       });
     }
-  }, [modelId, createNode]);
+  }, [modelId, createNode, screenToFlowPosition]);
 
   const onNodeClick = useCallback((_event: React.MouseEvent, node: FlowNode) => {
-    setSelectedNode(node.id as Id<"nodes">);
-  }, []);
+    onNodeSelect(node.id as Id<"nodes">);
+  }, [onNodeSelect]);
 
   return (
-    <div className="w-full h-[600px] bg-base-300 rounded-lg overflow-hidden">
+    <div className="w-full h-[calc(100vh-16rem)] bg-base-200 rounded-lg overflow-hidden">
       <ReactFlow
-        nodes={flowNodes}
-        edges={flowEdges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onPaneClick={onPaneClick}
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={handleNodesChange}
+        onEdgesChange={handleEdgesChange}
+        onConnect={handleConnect}
+        onPaneClick={handlePaneClick}
         onNodeClick={onNodeClick}
+        zoomOnDoubleClick={false}
         fitView
       >
-        <Background />
         <Controls />
         <MiniMap />
         <Panel position="top-left" className="bg-base-100 px-3 py-2 rounded-lg shadow text-sm">
           Double-click canvas to create node
         </Panel>
       </ReactFlow>
-
-      {selectedNode && (
-        <NodeInspector
-          node={dbNodes.find((n) => n._id === selectedNode)!}
-          onClose={() => setSelectedNode(null)}
-          onUpdate={(updates) =>
-            void updateNode({ id: selectedNode, ...updates })
-          }
-          onDelete={() => {
-            void deleteNode({ id: selectedNode });
-            setSelectedNode(null);
-          }}
-        />
-      )}
     </div>
   );
 }
 
-interface NodeInspectorProps {
+export interface NodeInspectorProps {
   node: Node;
+  allNodes: Node[];
   onClose: () => void;
   onUpdate: (updates: { title?: string; description?: string; cptEntries?: any }) => void;
   onDelete: () => void;
 }
 
-function NodeInspector({
+export function NodeInspector({
   node,
+  allNodes,
   onClose,
   onUpdate,
   onDelete,
 }: NodeInspectorProps) {
   const [title, setTitle] = useState(node.title);
   const [description, setDescription] = useState(node.description ?? "");
+  const [hasChanges, setHasChanges] = useState(false);
+
+  const parentNodeIds = Object.keys(node.cptEntries[0]?.parentStates || {});
+  const parentNodes = allNodes.filter((n) => parentNodeIds.includes(n._id));
+
+  const handleSave = () => {
+    if (title.trim()) {
+      onUpdate({ title: title.trim(), description: description.trim() || undefined });
+      setHasChanges(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setTitle(node.title);
+    setDescription(node.description ?? "");
+    setHasChanges(false);
+  };
+
+  const handleTitleChange = (value: string) => {
+    setTitle(value);
+    setHasChanges(value.trim() !== node.title || description.trim() !== (node.description ?? ""));
+  };
+
+  const handleDescriptionChange = (value: string) => {
+    setDescription(value);
+    setHasChanges(title.trim() !== node.title || value.trim() !== (node.description ?? ""));
+  };
 
   return (
-    <div className="absolute top-4 right-4 w-80 bg-base-100 rounded-lg shadow-lg p-4 z-10">
+    <div className="w-full h-full flex flex-col">
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-bold text-lg">Edit Node</h3>
         <button className="btn btn-square btn-sm btn-ghost" onClick={onClose}>
@@ -210,7 +304,7 @@ function NodeInspector({
         </button>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-3 flex-1 overflow-y-auto">
         <div>
           <label className="label">
             <span className="label-text">Title</span>
@@ -219,8 +313,7 @@ function NodeInspector({
             type="text"
             className="input input-border w-full"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={() => onUpdate({ title })}
+            onChange={(e) => handleTitleChange(e.target.value)}
           />
         </div>
 
@@ -232,37 +325,26 @@ function NodeInspector({
             className="textarea textarea-border w-full"
             rows={3}
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            onBlur={() => onUpdate({ description })}
+            onChange={(e) => handleDescriptionChange(e.target.value)}
           />
         </div>
 
-        <div>
-          <label className="label">
-            <span className="label-text">Base Probability</span>
-          </label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            max="1"
-            className="input input-border w-full"
-            value={node.cptEntries[0]?.probability ?? 0.5}
-            onChange={(e) =>
-              onUpdate({
-                cptEntries: [
-                  {
-                    parentStates: {},
-                    probability: parseFloat(e.target.value),
-                  },
-                ],
-              })
-            }
-          />
-          <span className="label-text-alt opacity-70">
-            Probability when no parents
-          </span>
-        </div>
+        {hasChanges && (
+          <div className="flex gap-2">
+            <button className="btn btn-primary btn-sm flex-1" onClick={handleSave} disabled={!title.trim()}>
+              Save
+            </button>
+            <button className="btn btn-ghost btn-sm flex-1" onClick={handleCancel}>
+              Cancel
+            </button>
+          </div>
+        )}
+
+        <CPTEditor
+          cptEntries={node.cptEntries}
+          parentNodes={parentNodes}
+          onUpdate={(entries) => onUpdate({ cptEntries: entries })}
+        />
 
         <button className="btn btn-error btn-sm w-full" onClick={onDelete}>
           <Trash2 className="w-4 h-4" />

@@ -1,11 +1,14 @@
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { getCurrentUserOrCrash } from "./users";
+import { getCurrentUserOrNull, getCurrentUserOrCrash } from "./users";
+import type { Id } from "./_generated/dataModel";
 
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const user = await getCurrentUserOrCrash(ctx);
+    const user = await getCurrentUserOrNull(ctx);
+    if (!user) return [];
+
     const ownedModels = await ctx.db
       .query("models")
       .withIndex("by_ownerId", (q) => q.eq("ownerId", user._id))
@@ -13,17 +16,12 @@ export const list = query({
 
     const publicModels = await ctx.db
       .query("models")
-      .filter((q) => q.eq(q.field("isPublic"), true))
+      .withIndex("by_isPublic", (q) => q.eq("isPublic", true))
       .collect();
 
-    const allModels = [...ownedModels];
-    for (const model of publicModels) {
-      if (!allModels.find((m) => m._id === model._id)) {
-        allModels.push(model);
-      }
-    }
-
-    return allModels;
+    const ownedModelIds = new Set(ownedModels.map(m => m._id));
+    const uniquePublicModels = publicModels.filter(m => !ownedModelIds.has(m._id));
+    return [...ownedModels, ...uniquePublicModels];
   },
 });
 
@@ -33,7 +31,11 @@ export const get = query({
     const model = await ctx.db.get(args.id);
     if (!model) return null;
 
-    const user = await getCurrentUserOrCrash(ctx);
+    const user = await getCurrentUserOrNull(ctx);
+    if (!user) {
+      return model.isPublic ? model : null;
+    }
+
     if (model.ownerId !== user._id && !model.isPublic) {
       return null;
     }
@@ -69,18 +71,27 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const model = await ctx.db.get(args.id);
-    if (!model) throw new Error("Model not found");
+    if (!model) throw new ConvexError("Model not found");
 
     const user = await getCurrentUserOrCrash(ctx);
     if (model.ownerId !== user._id) {
-      throw new Error("Not authorized");
+      throw new ConvexError("Not authorized");
     }
 
     const updates: Partial<typeof model> = {};
     if (args.name !== undefined) updates.name = args.name;
     if (args.description !== undefined) updates.description = args.description;
     if (args.isPublic !== undefined) updates.isPublic = args.isPublic;
-    if (args.outputNodeId !== undefined) updates.outputNodeId = args.outputNodeId;
+    if (args.outputNodeId !== undefined) {
+      const outputNode = await ctx.db.get(args.outputNodeId);
+      if (!outputNode) {
+        throw new ConvexError("Output node not found");
+      }
+      if (outputNode.modelId !== args.id) {
+        throw new ConvexError("Output node must belong to this model");
+      }
+      updates.outputNodeId = args.outputNodeId;
+    }
 
     await ctx.db.patch(args.id, updates);
   },
@@ -90,11 +101,11 @@ export const remove = mutation({
   args: { id: v.id("models") },
   handler: async (ctx, args) => {
     const model = await ctx.db.get(args.id);
-    if (!model) throw new Error("Model not found");
+    if (!model) throw new ConvexError("Model not found");
 
     const user = await getCurrentUserOrCrash(ctx);
     if (model.ownerId !== user._id) {
-      throw new Error("Not authorized");
+      throw new ConvexError("Not authorized");
     }
 
     const nodes = await ctx.db
@@ -114,11 +125,11 @@ export const clone = mutation({
   args: { id: v.id("models") },
   handler: async (ctx, args) => {
     const model = await ctx.db.get(args.id);
-    if (!model) throw new Error("Model not found");
+    if (!model) throw new ConvexError("Model not found");
 
     const user = await getCurrentUserOrCrash(ctx);
     if (model.ownerId !== user._id && !model.isPublic) {
-      throw new Error("Not authorized");
+      throw new ConvexError("Not authorized");
     }
 
     const newModelId = await ctx.db.insert("models", {
@@ -136,11 +147,31 @@ export const clone = mutation({
     const nodeIdMap = new Map<string, string>();
 
     for (const node of nodes) {
+      const newNodeId = await ctx.db.insert("nodes", {
+        modelId: newModelId,
+        title: node.title,
+        description: node.description,
+        x: node.x,
+        y: node.y,
+        cptEntries: [{ parentStates: {}, probability: 0.5 }],
+      });
+      nodeIdMap.set(node._id, newNodeId);
+    }
+
+    for (const node of nodes) {
+      const newNodeId = nodeIdMap.get(node._id);
+      if (!newNodeId) {
+        throw new ConvexError(`Failed to find cloned node for ${node._id}`);
+      }
+
       const remappedCptEntries = node.cptEntries.map((entry) => {
-        const remappedParentStates: Record<string, boolean> = {};
+        const remappedParentStates: Record<Id<"nodes">, boolean | null> = {};
         for (const [oldParentId, state] of Object.entries(entry.parentStates)) {
-          const newParentId = nodeIdMap.get(oldParentId) || oldParentId;
-          remappedParentStates[newParentId] = state;
+          const newParentId = nodeIdMap.get(oldParentId);
+          if (!newParentId) {
+            throw new ConvexError(`Failed to find cloned parent node for ${oldParentId}`);
+          }
+          remappedParentStates[newParentId as Id<"nodes">] = state;
         }
         return {
           parentStates: remappedParentStates,
@@ -148,22 +179,16 @@ export const clone = mutation({
         };
       });
 
-      const newNodeId = await ctx.db.insert("nodes", {
-        modelId: newModelId,
-        title: node.title,
-        description: node.description,
-        x: node.x,
-        y: node.y,
+      await ctx.db.patch(newNodeId as Id<"nodes">, {
         cptEntries: remappedCptEntries,
       });
-      nodeIdMap.set(node._id, newNodeId);
     }
 
     if (model.outputNodeId) {
       const newOutputNodeId = nodeIdMap.get(model.outputNodeId);
       if (newOutputNodeId) {
         await ctx.db.patch(newModelId, {
-          outputNodeId: newOutputNodeId as any,
+          outputNodeId: newOutputNodeId as Id<"nodes">,
         });
       }
     }
