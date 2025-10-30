@@ -18,7 +18,7 @@ function serializeAssignment(assignment: Map<Id<"nodes">, boolean>): string {
   const sorted = Array.from(assignment.entries()).sort((a, b) =>
     a[0].localeCompare(b[0])
   );
-  return JSON.stringify(sorted);
+  return sorted.map(([id, val]) => `${id}:${val ? 'T' : 'F'}`).join(',');
 }
 
 // Helper: enumerate all binary assignments for a set of variables
@@ -276,6 +276,84 @@ function getParentIds(node: NodeWithCPT): Id<"nodes">[] {
   return Array.from(parentIds);
 }
 
+function computeAllMarginalsOptimized(
+  factors: Factor[]
+): Map<Id<"nodes">, number> {
+  const probabilities = new Map<Id<"nodes">, number>();
+
+  // Collect all variables from factors
+  const allVars = new Set<Id<"nodes">>();
+  for (const factor of factors) {
+    for (const v of factor.scope) {
+      allVars.add(v);
+    }
+  }
+
+  // We'll eliminate all variables, capturing each marginal before elimination
+  const eliminationOrder = Array.from(allVars);
+  let currentFactors = [...factors];
+
+  for (const variable of eliminationOrder) {
+    // Find factors that mention this variable
+    const relevant: Factor[] = [];
+    const irrelevant: Factor[] = [];
+
+    for (const f of currentFactors) {
+      if (f.scope.includes(variable)) {
+        relevant.push(f);
+      } else {
+        irrelevant.push(f);
+      }
+    }
+
+    if (relevant.length === 0) continue;
+
+    // Multiply all relevant factors
+    let product = relevant[0];
+    for (let i = 1; i < relevant.length; i++) {
+      product = factorProduct(product, relevant[i]);
+    }
+
+    // Before eliminating, compute and cache this variable's marginal
+    const marginalFactor = sumOut(product, variable);
+
+    // Extract P(variable=true) from the product (before summing out)
+    // Project product to just this variable to get its marginal
+    let probTrue = 0;
+    let probFalse = 0;
+
+    for (const [key, value] of product.table.entries()) {
+      const assignment = deserializeAssignment(key);
+      if (assignment.get(variable) === true) {
+        probTrue += value;
+      } else if (assignment.get(variable) === false) {
+        probFalse += value;
+      }
+    }
+
+    const total = probTrue + probFalse;
+    const normalized = total > Number.EPSILON ? probTrue / total : 0.5;
+    probabilities.set(variable, normalized);
+
+    // Now sum out the variable and continue
+    currentFactors = [...irrelevant, marginalFactor];
+  }
+
+  return probabilities;
+}
+
+function deserializeAssignment(key: string): Map<Id<"nodes">, boolean> {
+  const assignment = new Map<Id<"nodes">, boolean>();
+  if (key === "") return assignment;
+
+  const pairs = key.split(",");
+  for (const pair of pairs) {
+    const [varId, value] = pair.split(":");
+    assignment.set(varId as Id<"nodes">, value === "T");
+  }
+  return assignment;
+}
+
 export function computeMarginalProbabilities(
   nodes: NodeWithCPT[],
   options?: {
@@ -289,12 +367,14 @@ export function computeMarginalProbabilities(
   // Build initial factors from CPTs (or use provided factors)
   const factors = options?.prebuiltFactors ?? buildInitialFactors(nodes);
 
-  const probabilities = new Map<Id<"nodes">, number>();
+  // If computing all nodes (no target specified), use optimized single-pass
+  if (!options?.targetNodeId) {
+    return computeAllMarginalsOptimized(factors);
+  }
 
-  // Compute marginal for target node only (or all nodes if not specified)
-  const nodesToCompute = options?.targetNodeId
-    ? nodes.filter(n => n._id === options.targetNodeId)
-    : nodes;
+  // For single node queries, use the existing elimination approach
+  const probabilities = new Map<Id<"nodes">, number>();
+  const nodesToCompute = nodes.filter(n => n._id === options.targetNodeId);
 
   for (const node of nodesToCompute) {
     const result = eliminateAllExcept(factors, [node._id]);

@@ -139,9 +139,22 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect,
     }
   });
 
+  const probabilisticFingerprint = useMemo(() => {
+    return dbNodes.map((node) => {
+      const entriesStr = node.cptEntries.map((entry) => {
+        const parentsStr = Object.keys(entry.parentStates).sort()
+          .map(pid => `${pid}:${entry.parentStates[pid]}`)
+          .join(',');
+        return `${parentsStr}|${entry.probability}`;
+      }).join(';');
+      return `${node._id}:${entriesStr}`;
+    }).join('|');
+  }, [dbNodes]);
+
   const probabilities = useMemo(() => {
     return computeMarginalProbabilities(dbNodes);
-  }, [dbNodes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [probabilisticFingerprint]);
 
   const initialNodes: FlowNode[] = dbNodes.map((node) => ({
     id: node._id,
