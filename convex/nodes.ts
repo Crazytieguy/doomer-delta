@@ -181,6 +181,10 @@ export const update = mutation({
       }
 
       updates.cptEntries = args.cptEntries;
+
+      if (args.columnOrder === undefined && node.columnOrder !== undefined) {
+        updates.columnOrder = node.columnOrder.filter(id => newParentIds.has(id));
+      }
     }
 
     await ctx.db.patch(args.id, updates);
@@ -207,9 +211,20 @@ export const remove = mutation({
       .collect();
 
     for (const childNode of allNodes) {
-      const hasDeletedParent = childNode.cptEntries.some(entry =>
-        Object.keys(entry.parentStates).includes(args.id)
-      );
+      const hasNonNullDependency = childNode.cptEntries.some(entry => {
+        const parentState = entry.parentStates[args.id];
+        return parentState !== undefined && parentState !== null;
+      });
+
+      if (hasNonNullDependency) {
+        throw new ConvexError(
+          `Cannot delete: "${childNode.title}" has specific probabilities for this node. Set to "any" first.`
+        );
+      }
+    }
+
+    for (const childNode of allNodes) {
+      const hasDeletedParent = childNode.cptEntries.some(entry => args.id in entry.parentStates);
 
       if (hasDeletedParent) {
         const newCptEntries = childNode.cptEntries.map(entry => {
@@ -223,19 +238,10 @@ export const remove = mutation({
 
         const newColumnOrder = childNode.columnOrder?.filter(id => id !== args.id);
 
-        try {
-          validateCPTEntriesOrThrow(newCptEntries);
-          await ctx.db.patch(childNode._id, {
-            cptEntries: newCptEntries,
-            columnOrder: newColumnOrder,
-          });
-        } catch (error) {
-          console.warn(`CPT validation failed for node ${childNode._id} after parent deletion. Resetting to base probability.`, error);
-          await ctx.db.patch(childNode._id, {
-            cptEntries: [{ parentStates: {}, probability: 0.5 }],
-            columnOrder: undefined,
-          });
-        }
+        await ctx.db.patch(childNode._id, {
+          cptEntries: newCptEntries,
+          columnOrder: newColumnOrder,
+        });
       }
     }
 

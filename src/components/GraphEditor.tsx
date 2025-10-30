@@ -25,6 +25,7 @@ import "reactflow/dist/style.css";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { computeMarginalProbabilities } from "@/lib/bayesianInference";
+import { useToast } from "./ToastContext";
 
 export type Node = {
   _id: Id<"nodes">;
@@ -91,10 +92,52 @@ export function GraphEditor({ modelId, nodes: dbNodes, selectedNode, onNodeSelec
 
 function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect, isReadOnly = false }: GraphEditorProps) {
   const { screenToFlowPosition } = useReactFlow();
+  const { showError, showSuccess } = useToast();
 
   const createNode = useMutation(api.nodes.create);
-  const updateNode = useMutation(api.nodes.update);
-  const deleteNode = useMutation(api.nodes.remove);
+  const updateNode = useMutation(api.nodes.update).withOptimisticUpdate((localStore, args) => {
+    const currentNodes = localStore.getQuery(api.nodes.listByModel, { modelId });
+    if (currentNodes) {
+      const updatedNodes = currentNodes.map((node) => {
+        if (node._id !== args.id) return node;
+
+        return {
+          ...node,
+          ...(args.title !== undefined && { title: args.title }),
+          ...(args.description !== undefined && { description: args.description }),
+          ...(args.x !== undefined && { x: args.x }),
+          ...(args.y !== undefined && { y: args.y }),
+          ...(args.cptEntries !== undefined && { cptEntries: args.cptEntries }),
+          ...(args.columnOrder !== undefined && { columnOrder: args.columnOrder }),
+        };
+      });
+
+      localStore.setQuery(api.nodes.listByModel, { modelId }, updatedNodes);
+    }
+  });
+  const deleteNode = useMutation(api.nodes.remove).withOptimisticUpdate((localStore, args) => {
+    const currentNodes = localStore.getQuery(api.nodes.listByModel, { modelId });
+    if (currentNodes) {
+      const filteredNodes = currentNodes.filter((n) => n._id !== args.id);
+
+      const updatedNodes = filteredNodes.map((node) => {
+        const hasDeletedParent = node.cptEntries.some(entry => args.id in entry.parentStates);
+        if (!hasDeletedParent) return node;
+
+        return {
+          ...node,
+          cptEntries: node.cptEntries.map(entry => {
+            const newParentStates = { ...entry.parentStates };
+            delete newParentStates[args.id];
+            return { ...entry, parentStates: newParentStates };
+          }),
+          columnOrder: node.columnOrder?.filter(id => id !== args.id),
+        };
+      });
+
+      localStore.setQuery(api.nodes.listByModel, { modelId }, updatedNodes);
+    }
+  });
 
   const probabilities = useMemo(() => {
     return computeMarginalProbabilities(dbNodes);
@@ -183,15 +226,44 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect,
 
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      onNodesChange(changes);
+      const nonRemoveChanges: NodeChange[] = [];
 
       changes.forEach((change) => {
         if (change.type === "remove") {
-          void deleteNode({ id: change.id as Id<"nodes"> });
+          const nodeId = change.id as Id<"nodes">;
+          const childrenWithDependency = dbNodes.filter((childNode) =>
+            childNode.cptEntries.some((entry) => {
+              const parentState = entry.parentStates[nodeId];
+              return parentState !== undefined && parentState !== null;
+            })
+          );
+
+          if (childrenWithDependency.length > 0) {
+            const childTitles = childrenWithDependency.map((n) => n.title).join(", ");
+            showError(
+              `Cannot delete: ${childTitles} ${childrenWithDependency.length > 1 ? "have" : "has"} specific probabilities for this node. Set to "any" first.`
+            );
+            return;
+          }
+
+          void (async () => {
+            try {
+              await deleteNode({ id: nodeId });
+              showSuccess("Node deleted successfully");
+            } catch (error) {
+              showError(error);
+            }
+          })();
+        } else {
+          nonRemoveChanges.push(change);
         }
       });
+
+      if (nonRemoveChanges.length > 0) {
+        onNodesChange(nonRemoveChanges);
+      }
     },
-    [onNodesChange, deleteNode]
+    [onNodesChange, deleteNode, showSuccess, showError, dbNodes]
   );
 
   const handleNodeDragStop = useCallback(
@@ -207,36 +279,25 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect,
 
   const handleEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
-      // Filter out invalid edge removals before applying changes
-      const validChanges = changes.filter((change) => {
+      const nonRemovalChanges: EdgeChange[] = [];
+
+      changes.forEach((change) => {
         if (change.type === "remove") {
           const [parentId, childId] = change.id.split("-");
           const childNode = dbNodes.find((n) => n._id === childId);
 
           if (childNode) {
-            // Check if all entries have "any" (null) for this parent
             const canRemove = childNode.cptEntries.every(
               (entry) => entry.parentStates[parentId] === null
             );
 
             if (!canRemove) {
-              // Prevent removal - would create conflicts or lose information
-              return false;
+              showError(
+                `Cannot remove edge: "${childNode.title}" has specific probabilities for this parent. Set all to "any" first.`
+              );
+              return;
             }
-          }
-        }
-        return true;
-      });
 
-      // Apply only valid changes to the UI
-      onEdgesChange(validChanges);
-
-      // Process valid removals
-      validChanges.forEach((change) => {
-        if (change.type === "remove") {
-          const [parentId, childId] = change.id.split("-");
-          const childNode = dbNodes.find((n) => n._id === childId);
-          if (childNode) {
             const newCptEntries = childNode.cptEntries.map((entry) => {
               const newParentStates = { ...entry.parentStates };
               delete newParentStates[parentId];
@@ -245,15 +306,33 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect,
                 probability: entry.probability,
               };
             });
-            void updateNode({
-              id: childId as Id<"nodes">,
-              cptEntries: newCptEntries,
-            });
+            const newColumnOrder = childNode.columnOrder?.filter(
+              (id) => id !== parentId
+            );
+
+            void (async () => {
+              try {
+                await updateNode({
+                  id: childId as Id<"nodes">,
+                  cptEntries: newCptEntries,
+                  columnOrder: newColumnOrder,
+                });
+                showSuccess("Edge removed successfully");
+              } catch (error) {
+                showError(error);
+              }
+            })();
           }
+        } else {
+          nonRemovalChanges.push(change);
         }
       });
+
+      if (nonRemovalChanges.length > 0) {
+        onEdgesChange(nonRemovalChanges);
+      }
     },
-    [onEdgesChange, dbNodes, updateNode]
+    [onEdgesChange, dbNodes, updateNode, showSuccess, showError]
   );
 
   const handleConnect = useCallback(
