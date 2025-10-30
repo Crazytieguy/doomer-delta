@@ -106,31 +106,44 @@ function lookupConditional(
   return bestEntry.probability;
 }
 
+// Build a single factor for a node with a given CPT
+function buildSingleNodeFactor(node: NodeWithCPT): Factor {
+  const parentIds = getParentIds(node);
+  const scope = [...parentIds, node._id];
+  const table = new Map<string, number>();
+
+  const assignments = enumerateBinaryAssignments(scope);
+
+  for (const assignment of assignments) {
+    const nodeValue = assignment.get(node._id)!;
+    const parentAssignment = projectAssignment(assignment, parentIds);
+
+    const probTrue = lookupConditional(node, parentAssignment);
+
+    const prob = nodeValue ? probTrue : (1 - probTrue);
+    table.set(serializeAssignment(assignment), prob);
+  }
+
+  return { scope, table };
+}
+
+// Build a deterministic intervention factor (for do(node=value) operations)
+function buildInterventionFactor(nodeId: Id<"nodes">, probability: number): Factor {
+  const scope = [nodeId];
+  const table = new Map<string, number>();
+
+  table.set(serializeAssignment(new Map([[nodeId, true]])), probability);
+  table.set(serializeAssignment(new Map([[nodeId, false]])), 1 - probability);
+
+  return { scope, table };
+}
+
 // Build initial factors from CPTs
 function buildInitialFactors(nodes: NodeWithCPT[]): Factor[] {
   const factors: Factor[] = [];
 
   for (const node of nodes) {
-    const parentIds = getParentIds(node);
-    const scope = [...parentIds, node._id];
-    const table = new Map<string, number>();
-
-    // Enumerate all assignments to the family
-    const assignments = enumerateBinaryAssignments(scope);
-
-    for (const assignment of assignments) {
-      const nodeValue = assignment.get(node._id)!;
-      const parentAssignment = projectAssignment(assignment, parentIds);
-
-      // Get P(node=true | parents) using most-specific match
-      const probTrue = lookupConditional(node, parentAssignment);
-
-      // Assign probability based on node's value in this assignment
-      const prob = nodeValue ? probTrue : (1 - probTrue);
-      table.set(serializeAssignment(assignment), prob);
-    }
-
-    factors.push({ scope, table });
+    factors.push(buildSingleNodeFactor(node));
   }
 
   return factors;
@@ -264,18 +277,26 @@ function getParentIds(node: NodeWithCPT): Id<"nodes">[] {
 }
 
 export function computeMarginalProbabilities(
-  nodes: NodeWithCPT[]
+  nodes: NodeWithCPT[],
+  options?: {
+    targetNodeId?: Id<"nodes">;
+    prebuiltFactors?: Factor[];
+  }
 ): Map<Id<"nodes">, number> {
   if (nodes.length === 0) return new Map();
 
   // Note: Cycle detection is handled at the database level when adding edges
-  // Build initial factors from CPTs
-  const factors = buildInitialFactors(nodes);
+  // Build initial factors from CPTs (or use provided factors)
+  const factors = options?.prebuiltFactors ?? buildInitialFactors(nodes);
 
   const probabilities = new Map<Id<"nodes">, number>();
 
-  // Compute marginal for each node
-  for (const node of nodes) {
+  // Compute marginal for target node only (or all nodes if not specified)
+  const nodesToCompute = options?.targetNodeId
+    ? nodes.filter(n => n._id === options.targetNodeId)
+    : nodes;
+
+  for (const node of nodesToCompute) {
     const result = eliminateAllExcept(factors, [node._id]);
 
     // Extract P(node=true) and P(node=false), then normalize
@@ -349,41 +370,43 @@ export function computeSensitivity(
   const sensitivities = new Map<Id<"nodes">, number>();
   const ancestors = getAncestors(targetNodeId, nodes);
 
-  for (const node of nodes) {
-    if (node._id === targetNodeId) {
-      continue;
-    }
+  if (ancestors.size === 0) {
+    return sensitivities;
+  }
 
-    if (!ancestors.has(node._id)) {
-      continue;
-    }
+  // Build node lookup map for O(1) access
+  const nodeMap = new Map(nodes.map(n => [n._id, n]));
 
-    // Compute P(target | do(node=true))
-    const interventionTrue = nodes.map(n => {
-      if (n._id === node._id) {
-        // Replace CPT with deterministic: always true
-        return {
-          ...n,
-          cptEntries: [{ parentStates: {}, probability: 1.0 }]
-        };
-      }
-      return n;
+  // Build baseline factors once (major optimization)
+  const baselineFactors = buildInitialFactors(nodes);
+
+  // Iterate ancestors directly (minor optimization)
+  for (const ancestorId of ancestors) {
+    const ancestorNode = nodeMap.get(ancestorId);
+    if (!ancestorNode) continue;
+
+    // Find the index of this ancestor's factor in the baseline
+    const ancestorIndex = nodes.findIndex(n => n._id === ancestorId);
+    if (ancestorIndex === -1) continue;
+
+    // Compute P(target | do(ancestor=true))
+    // Replace only the ancestor's factor with deterministic intervention
+    const factorsTrue = [...baselineFactors];
+    factorsTrue[ancestorIndex] = buildInterventionFactor(ancestorId, 1.0);
+
+    const probsTrue = computeMarginalProbabilities(nodes, {
+      targetNodeId,
+      prebuiltFactors: factorsTrue,
     });
 
-    // Compute P(target | do(node=false))
-    const interventionFalse = nodes.map(n => {
-      if (n._id === node._id) {
-        // Replace CPT with deterministic: always false
-        return {
-          ...n,
-          cptEntries: [{ parentStates: {}, probability: 0.0 }]
-        };
-      }
-      return n;
-    });
+    // Compute P(target | do(ancestor=false))
+    const factorsFalse = [...baselineFactors];
+    factorsFalse[ancestorIndex] = buildInterventionFactor(ancestorId, 0.0);
 
-    const probsTrue = computeMarginalProbabilities(interventionTrue);
-    const probsFalse = computeMarginalProbabilities(interventionFalse);
+    const probsFalse = computeMarginalProbabilities(nodes, {
+      targetNodeId,
+      prebuiltFactors: factorsFalse,
+    });
 
     const targetTrue = probsTrue.get(targetNodeId) ?? 0.5;
     const targetFalse = probsFalse.get(targetNodeId) ?? 0.5;
@@ -392,7 +415,7 @@ export function computeSensitivity(
     const sensitivity = targetTrue - targetFalse;
 
     if (Math.abs(sensitivity) > 0.0001) {
-      sensitivities.set(node._id, sensitivity);
+      sensitivities.set(ancestorId, sensitivity);
     }
   }
 
