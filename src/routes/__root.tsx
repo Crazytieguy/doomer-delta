@@ -80,16 +80,24 @@ function RootComponent() {
                       </Link>
                     </div>
                     <div className="navbar-center hidden lg:flex">
-                      <nav className="flex">
+                      <nav className="flex gap-1">
                         <Link
-                          to="/"
+                          to="/models/my"
                           className="btn btn-ghost"
                           activeProps={{
                             className: "btn btn-ghost btn-active",
                           }}
-                          onClick={() => setIsSidebarOpen(false)}
                         >
-                          Home
+                          My Models
+                        </Link>
+                        <Link
+                          to="/models/public"
+                          className="btn btn-ghost"
+                          activeProps={{
+                            className: "btn btn-ghost btn-active",
+                          }}
+                        >
+                          Public Models
                         </Link>
                       </nav>
                     </div>
@@ -120,14 +128,26 @@ function RootComponent() {
                       <ul className="space-y-2">
                         <li>
                           <Link
-                            to="/"
+                            to="/models/my"
                             onClick={() => setIsSidebarOpen(false)}
                             activeProps={{
                               className: "active",
                             }}
                             className="flex items-center p-2"
                           >
-                            Home
+                            My Models
+                          </Link>
+                        </li>
+                        <li>
+                          <Link
+                            to="/models/public"
+                            onClick={() => setIsSidebarOpen(false)}
+                            activeProps={{
+                              className: "active",
+                            }}
+                            className="flex items-center p-2"
+                          >
+                            Public Models
                           </Link>
                         </li>
                       </ul>

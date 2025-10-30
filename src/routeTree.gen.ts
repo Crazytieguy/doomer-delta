@@ -10,11 +10,23 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ModelsPublicRouteImport } from './routes/models.public'
+import { Route as ModelsMyRouteImport } from './routes/models.my'
 import { Route as ModelsModelIdRouteImport } from './routes/models.$modelId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ModelsPublicRoute = ModelsPublicRouteImport.update({
+  id: '/models/public',
+  path: '/models/public',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ModelsMyRoute = ModelsMyRouteImport.update({
+  id: '/models/my',
+  path: '/models/my',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ModelsModelIdRoute = ModelsModelIdRouteImport.update({
@@ -26,27 +38,35 @@ const ModelsModelIdRoute = ModelsModelIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/models/$modelId': typeof ModelsModelIdRoute
+  '/models/my': typeof ModelsMyRoute
+  '/models/public': typeof ModelsPublicRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/models/$modelId': typeof ModelsModelIdRoute
+  '/models/my': typeof ModelsMyRoute
+  '/models/public': typeof ModelsPublicRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/models/$modelId': typeof ModelsModelIdRoute
+  '/models/my': typeof ModelsMyRoute
+  '/models/public': typeof ModelsPublicRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/models/$modelId'
+  fullPaths: '/' | '/models/$modelId' | '/models/my' | '/models/public'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/models/$modelId'
-  id: '__root__' | '/' | '/models/$modelId'
+  to: '/' | '/models/$modelId' | '/models/my' | '/models/public'
+  id: '__root__' | '/' | '/models/$modelId' | '/models/my' | '/models/public'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ModelsModelIdRoute: typeof ModelsModelIdRoute
+  ModelsMyRoute: typeof ModelsMyRoute
+  ModelsPublicRoute: typeof ModelsPublicRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -56,6 +76,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/models/public': {
+      id: '/models/public'
+      path: '/models/public'
+      fullPath: '/models/public'
+      preLoaderRoute: typeof ModelsPublicRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/models/my': {
+      id: '/models/my'
+      path: '/models/my'
+      fullPath: '/models/my'
+      preLoaderRoute: typeof ModelsMyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/models/$modelId': {
@@ -71,6 +105,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ModelsModelIdRoute: ModelsModelIdRoute,
+  ModelsMyRoute: ModelsMyRoute,
+  ModelsPublicRoute: ModelsPublicRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

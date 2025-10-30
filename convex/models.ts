@@ -1,27 +1,46 @@
 import { v, ConvexError } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { paginationOptsValidator } from "convex/server";
 import { getCurrentUserOrNull, getCurrentUserOrCrash } from "./users";
 import type { Id } from "./_generated/dataModel";
 
-export const list = query({
+export const listMyModels = query({
   args: {},
   handler: async (ctx) => {
     const user = await getCurrentUserOrNull(ctx);
     if (!user) return [];
 
-    const ownedModels = await ctx.db
+    return await ctx.db
       .query("models")
       .withIndex("by_ownerId", (q) => q.eq("ownerId", user._id))
+      .order("desc")
       .collect();
+  },
+});
 
-    const publicModels = await ctx.db
+export const listPublic = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const results = await ctx.db
       .query("models")
       .withIndex("by_isPublic", (q) => q.eq("isPublic", true))
-      .collect();
+      .order("desc")
+      .paginate(args.paginationOpts);
 
-    const ownedModelIds = new Set(ownedModels.map(m => m._id));
-    const uniquePublicModels = publicModels.filter(m => !ownedModelIds.has(m._id));
-    return [...ownedModels, ...uniquePublicModels];
+    const modelsWithOwners = await Promise.all(
+      results.page.map(async (model) => {
+        const owner = await ctx.db.get(model.ownerId);
+        return {
+          ...model,
+          ownerName: owner?.name ?? "Unknown",
+        };
+      })
+    );
+
+    return {
+      ...results,
+      page: modelsWithOwners,
+    };
   },
 });
 
@@ -33,14 +52,17 @@ export const get = query({
 
     const user = await getCurrentUserOrNull(ctx);
     if (!user) {
-      return model.isPublic ? model : null;
+      return model.isPublic ? { ...model, isOwner: false } : null;
     }
 
     if (model.ownerId !== user._id && !model.isPublic) {
       return null;
     }
 
-    return model;
+    return {
+      ...model,
+      isOwner: model.ownerId === user._id,
+    };
   },
 });
 
@@ -94,6 +116,22 @@ export const update = mutation({
     }
 
     await ctx.db.patch(args.id, updates);
+  },
+});
+
+export const togglePublic = mutation({
+  args: { id: v.id("models") },
+  handler: async (ctx, args) => {
+    const model = await ctx.db.get(args.id);
+    if (!model) throw new ConvexError("Model not found");
+
+    const user = await getCurrentUserOrCrash(ctx);
+    if (model.ownerId !== user._id) {
+      throw new ConvexError("Not authorized");
+    }
+
+    await ctx.db.patch(args.id, { isPublic: !model.isPublic });
+    return !model.isPublic;
   },
 });
 

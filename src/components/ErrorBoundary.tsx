@@ -31,36 +31,26 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       }
 
       return (
-        <div className="min-h-screen flex items-center justify-center p-4">
-          <div className="card bg-base-200 shadow-xl max-w-md">
-            <div className="card-body">
-              <h2 className="card-title text-error">Something went wrong</h2>
-              <p className="opacity-70">
-                An unexpected error occurred. Please refresh the page to continue.
-              </p>
-              {this.state.error && (
-                <div className="mt-4">
-                  <details className="collapse collapse-arrow bg-base-300">
-                    <summary className="collapse-title text-sm font-medium">
-                      Error details
-                    </summary>
-                    <div className="collapse-content">
-                      <pre className="text-xs overflow-auto">
-                        {this.state.error.message}
-                      </pre>
-                    </div>
-                  </details>
+        <div className="not-prose min-h-screen flex items-center justify-center p-8">
+          <div className="max-w-2xl w-full">
+            <h2 className="text-3xl font-bold text-error mb-4">Something went wrong</h2>
+            <p className="text-lg opacity-70 mb-6">
+              An unexpected error occurred. Please refresh the page to continue.
+            </p>
+            {this.state.error && (
+              <div className="bg-base-200 p-4 rounded-lg mb-6">
+                <div className="text-sm font-semibold mb-2">Error details:</div>
+                <div className="text-sm whitespace-pre-wrap break-words font-mono opacity-80">
+                  {this.state.error.message}
                 </div>
-              )}
-              <div className="card-actions justify-end mt-4">
-                <button
-                  className="btn btn-primary"
-                  onClick={() => window.location.reload()}
-                >
-                  Refresh page
-                </button>
               </div>
-            </div>
+            )}
+            <button
+              className="btn btn-primary"
+              onClick={() => window.location.reload()}
+            >
+              Refresh page
+            </button>
           </div>
         </div>
       );

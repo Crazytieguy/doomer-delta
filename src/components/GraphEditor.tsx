@@ -45,6 +45,7 @@ interface GraphEditorProps {
   nodes: Node[];
   selectedNode: Id<"nodes"> | null;
   onNodeSelect: (nodeId: Id<"nodes"> | null) => void;
+  isReadOnly?: boolean;
 }
 
 function ProbabilityNode({ data }: NodeProps) {
@@ -79,15 +80,15 @@ const nodeTypes = {
   probability: ProbabilityNode,
 };
 
-export function GraphEditor({ modelId, nodes: dbNodes, selectedNode, onNodeSelect }: GraphEditorProps) {
+export function GraphEditor({ modelId, nodes: dbNodes, selectedNode, onNodeSelect, isReadOnly }: GraphEditorProps) {
   return (
     <ReactFlowProvider>
-      <GraphEditorInner modelId={modelId} nodes={dbNodes} selectedNode={selectedNode} onNodeSelect={onNodeSelect} />
+      <GraphEditorInner modelId={modelId} nodes={dbNodes} selectedNode={selectedNode} onNodeSelect={onNodeSelect} isReadOnly={isReadOnly} />
     </ReactFlowProvider>
   );
 }
 
-function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect }: GraphEditorProps) {
+function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect, isReadOnly = false }: GraphEditorProps) {
   const { screenToFlowPosition } = useReactFlow();
 
   const createNode = useMutation(api.nodes.create);
@@ -288,7 +289,7 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect 
   );
 
   const handlePaneClick = useCallback((event: React.MouseEvent) => {
-    if (event.detail === 2) {
+    if (event.detail === 2 && !isReadOnly) {
       const position = screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
@@ -307,7 +308,7 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect 
       // Single click on pane - deselect node and close sidebar
       onNodeSelect(null);
     }
-  }, [modelId, createNode, screenToFlowPosition, onNodeSelect]);
+  }, [modelId, createNode, screenToFlowPosition, onNodeSelect, isReadOnly]);
 
   const onNodeClick = useCallback((_event: React.MouseEvent, node: FlowNode) => {
     onNodeSelect(node.id as Id<"nodes">);
@@ -319,20 +320,31 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect 
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
-        onNodesChange={handleNodesChange}
-        onEdgesChange={handleEdgesChange}
-        onConnect={handleConnect}
-        onNodeDragStop={handleNodeDragStop}
+        onNodesChange={isReadOnly ? undefined : handleNodesChange}
+        onEdgesChange={isReadOnly ? undefined : handleEdgesChange}
+        onConnect={isReadOnly ? undefined : handleConnect}
+        onNodeDragStop={isReadOnly ? undefined : handleNodeDragStop}
         onPaneClick={handlePaneClick}
         onNodeClick={onNodeClick}
+        nodesDraggable={!isReadOnly}
+        nodesConnectable={!isReadOnly}
+        nodesFocusable={!isReadOnly}
+        edgesFocusable={!isReadOnly}
+        elementsSelectable
         zoomOnDoubleClick={false}
         fitView
       >
         <Controls />
         <MiniMap />
-        <Panel position="top-left" className="bg-base-100 px-3 py-2 rounded-lg shadow text-sm">
-          Double-click canvas to create node
-        </Panel>
+        {isReadOnly ? (
+          <Panel position="top-left" className="bg-warning/20 border-2 border-warning px-3 py-2 rounded-lg shadow text-sm">
+            Read-only mode
+          </Panel>
+        ) : (
+          <Panel position="top-left" className="bg-base-100 px-3 py-2 rounded-lg shadow text-sm">
+            Double-click canvas to create node
+          </Panel>
+        )}
       </ReactFlow>
     </div>
   );
@@ -351,6 +363,7 @@ export interface NodeInspectorProps {
     }>;
   }) => void;
   onDelete: () => void;
+  isReadOnly?: boolean;
 }
 
 export function NodeInspector({
@@ -359,6 +372,7 @@ export function NodeInspector({
   onClose,
   onUpdate,
   onDelete,
+  isReadOnly = false,
 }: NodeInspectorProps) {
   const [activeTab, setActiveTab] = useState<"edit" | "sensitivity">("edit");
   const [title, setTitle] = useState(node.title);
@@ -451,7 +465,7 @@ export function NodeInspector({
             className={`tab ${activeTab === "edit" ? "tab-active" : ""}`}
             onClick={() => setActiveTab("edit")}
           >
-            Edit
+            {isReadOnly ? "Details" : "Edit"}
           </button>
           <button
             role="tab"
@@ -475,70 +489,87 @@ export function NodeInspector({
           e.preventDefault();
           handleSave();
         }}>
-        <div>
-          <label htmlFor="node-title" className="label">
-            <span className="label-text">Title</span>
-          </label>
-          <input
-            id="node-title"
-            ref={titleInputRef}
-            type="text"
-            className="input w-full"
-            value={title}
-            onChange={(e) => handleTitleChange(e.target.value)}
-            aria-required="true"
-          />
-        </div>
+        {isReadOnly ? (
+          <>
+            <h3 className="text-xl font-semibold">{title}</h3>
 
-        <div>
-          <label htmlFor="node-description" className="label">
-            <span className="label-text">Description</span>
-          </label>
-          <textarea
-            id="node-description"
-            className="textarea w-full"
-            rows={3}
-            value={description}
-            onChange={(e) => handleDescriptionChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSave();
-              } else if (e.key === 'Escape') {
-                e.stopPropagation();
-              }
-            }}
-          />
-        </div>
+            {description ? (
+              <p className="opacity-90 whitespace-pre-wrap">{description}</p>
+            ) : (
+              <p className="opacity-50 italic">No description</p>
+            )}
+          </>
+        ) : (
+          <>
+            <div>
+              <label htmlFor="node-title" className="label">
+                <span className="label-text">Title</span>
+              </label>
+              <input
+                id="node-title"
+                ref={titleInputRef}
+                type="text"
+                className="input w-full"
+                value={title}
+                onChange={(e) => handleTitleChange(e.target.value)}
+                aria-required="true"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="node-description" className="label">
+                <span className="label-text">Description</span>
+              </label>
+              <textarea
+                id="node-description"
+                className="textarea w-full"
+                rows={3}
+                value={description}
+                onChange={(e) => handleDescriptionChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSave();
+                  } else if (e.key === 'Escape') {
+                    e.stopPropagation();
+                  }
+                }}
+              />
+            </div>
+          </>
+        )}
 
         <CPTEditor
           cptEntries={cptEntries}
           parentNodes={parentNodes}
           onChange={handleCptChange}
           onValidationChange={(isValid) => setHasCptValidationError(!isValid)}
+          isReadOnly={isReadOnly}
         />
 
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              className="btn btn-primary btn-sm flex-1"
-              disabled={!hasChanges || !title.trim() || hasCptValidationError}
-            >
-              Save
-            </button>
-            <button
-              type="button"
-              className="btn btn-outline btn-sm flex-1"
-              onClick={handleCancel}
-              disabled={!hasChanges}
-            >
-              Cancel
-            </button>
-            <button type="button" className="btn btn-error btn-sm flex-1" onClick={onDelete}>
-              <Trash2 className="w-4 h-4" />
-              Delete
-            </button>
-          </div>
+          {!isReadOnly && (
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="btn btn-primary btn-sm flex-1"
+                disabled={!hasChanges || !title.trim() || hasCptValidationError}
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm flex-1"
+                onClick={handleCancel}
+                disabled={!hasChanges}
+              >
+                Cancel
+              </button>
+              <button type="button" className="btn btn-error btn-sm flex-1" onClick={onDelete}>
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
+            </div>
+          )}
         </form>
       ) : (
         <div className="flex-1 overflow-y-auto px-1">

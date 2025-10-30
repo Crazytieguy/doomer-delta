@@ -1,7 +1,8 @@
 import { convexQuery } from "@convex-dev/react-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
+import { Copy, Globe, GlobeLock, GitFork } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -29,6 +30,7 @@ export const Route = createFileRoute("/models/$modelId")({
 
 function ModelDetailPage() {
   const { modelId } = Route.useParams();
+  const navigate = useNavigate();
   const { data: model } = useSuspenseQuery(
     modelQueryOptions(modelId as Id<"models">),
   );
@@ -42,8 +44,13 @@ function ModelDetailPage() {
   const [modelDescription, setModelDescription] = useState(model?.description ?? "");
   const [hasModelChanges, setHasModelChanges] = useState(false);
 
+  const isOwner = model?.isOwner ?? false;
+  const isReadOnly = !isOwner;
+
   const updateNode = useMutation(api.nodes.update);
   const deleteNode = useMutation(api.nodes.remove);
+  const togglePublic = useMutation(api.models.togglePublic);
+  const cloneModel = useMutation(api.models.clone);
   const updateModel = useMutation(api.models.update).withOptimisticUpdate(
     (localStore, args) => {
       const currentModel = localStore.getQuery(api.models.get, { id: modelId as Id<"models"> });
@@ -96,6 +103,33 @@ function ModelDetailPage() {
     setHasModelChanges(modelName.trim() !== model.name || value.trim() !== (model.description || ""));
   };
 
+  const handleTogglePublic = async () => {
+    if (!model) return;
+    try {
+      await togglePublic({ id: modelId as Id<"models"> });
+      showSuccess(model.isPublic ? "Model is now private" : "Model is now public");
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  const handleClone = async () => {
+    if (!model) return;
+    try {
+      const newModelId = await cloneModel({ id: modelId as Id<"models"> });
+      showSuccess("Model cloned successfully");
+      navigate({ to: "/models/$modelId", params: { modelId: newModelId } });
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  const handleCopyLink = () => {
+    const url = window.location.href;
+    void navigator.clipboard.writeText(url);
+    showSuccess("Link copied to clipboard");
+  };
+
   if (!model) {
     return <div>Model not found</div>;
   }
@@ -112,46 +146,87 @@ function ModelDetailPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <form onSubmit={(e) => {
-        e.preventDefault();
-        void handleSaveModel();
-      }} className="relative z-10 mb-4">
-        <input
-          type="text"
-          className="input input-ghost text-4xl font-bold w-full px-0 mb-2"
-          value={modelName}
-          onChange={(e) => handleModelNameChange(e.target.value)}
-        />
-        <textarea
-          className="textarea textarea-ghost w-full px-0 opacity-70 resize-none"
-          style={{ minHeight: 'auto', lineHeight: 1.5 }}
-          rows={1}
-          placeholder="Add a description..."
-          value={modelDescription}
-          onChange={(e) => handleModelDescriptionChange(e.target.value)}
-          onInput={(e) => {
-            const target = e.currentTarget;
-            target.style.height = 'auto';
-            target.style.height = target.scrollHeight + 'px';
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+      <div className="relative z-10 flex gap-4 items-start">
+        <div className="flex-1 min-w-0">
+          {isReadOnly ? (
+            <>
+              <h1 className="text-4xl font-bold mt-0 mb-2">{modelName}</h1>
+              {modelDescription ? (
+                <p className="opacity-70 whitespace-pre-wrap mt-0">{modelDescription}</p>
+              ) : (
+                <p className="opacity-50 italic mt-0">No description</p>
+              )}
+            </>
+          ) : (
+            <form onSubmit={(e) => {
               e.preventDefault();
               void handleSaveModel();
-            }
-          }}
-        />
-        {hasModelChanges && (
-          <div className="flex gap-2 mt-2">
-            <button type="submit" className="btn btn-primary btn-sm" disabled={!modelName.trim()}>
-              Save
+            }}>
+              <input
+                type="text"
+                className="input input-ghost text-4xl font-bold w-full px-0 mb-2"
+                value={modelName}
+                onChange={(e) => handleModelNameChange(e.target.value)}
+              />
+              <textarea
+                className="textarea textarea-ghost w-full px-0 opacity-70 resize-none"
+                style={{ minHeight: 'auto', lineHeight: 1.5 }}
+                rows={1}
+                placeholder="Add a description..."
+                value={modelDescription}
+                onChange={(e) => handleModelDescriptionChange(e.target.value)}
+                onInput={(e) => {
+                  const target = e.currentTarget;
+                  target.style.height = 'auto';
+                  target.style.height = target.scrollHeight + 'px';
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    void handleSaveModel();
+                  }
+                }}
+              />
+              {hasModelChanges && (
+                <div className="flex gap-2 mt-2">
+                  <button type="submit" className="btn btn-primary btn-sm" disabled={!modelName.trim()}>
+                    Save
+                  </button>
+                  <button type="button" className="btn btn-outline btn-sm" onClick={handleCancelModel}>
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </form>
+          )}
+        </div>
+
+        <div className="not-prose flex gap-2 shrink-0">
+          {isOwner && (
+            <button
+              className="btn btn-sm btn-outline"
+              onClick={() => void handleTogglePublic()}
+            >
+              {model.isPublic ? <GlobeLock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
+              {model.isPublic ? "Make Private" : "Make Public"}
             </button>
-            <button type="button" className="btn btn-outline btn-sm" onClick={handleCancelModel}>
-              Cancel
-            </button>
-          </div>
-        )}
-      </form>
+          )}
+          <button
+            className="btn btn-sm btn-outline"
+            onClick={handleCopyLink}
+          >
+            <Copy className="w-4 h-4" />
+            Copy Link
+          </button>
+          <button
+            className="btn btn-sm btn-outline"
+            onClick={() => void handleClone()}
+          >
+            <GitFork className="w-4 h-4" />
+            Clone
+          </button>
+        </div>
+      </div>
 
       <div className="not-prose flex flex-1 gap-4 overflow-hidden">
         <div className="flex-1">
@@ -160,6 +235,7 @@ function ModelDetailPage() {
             nodes={nodes}
             selectedNode={selectedNode}
             onNodeSelect={handleNodeSelect}
+            isReadOnly={isReadOnly}
           />
         </div>
 
@@ -197,6 +273,7 @@ function ModelDetailPage() {
                     }
                   })();
                 }}
+                isReadOnly={isReadOnly}
               />
             </div>
           </>

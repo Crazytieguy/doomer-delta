@@ -1,5 +1,5 @@
 import { ConvexError } from "convex/values";
-import { mutation, MutationCtx, QueryCtx } from "./_generated/server";
+import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
 
 export async function getCurrentUserOrNull(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
@@ -14,6 +14,13 @@ export async function getCurrentUserOrNull(ctx: QueryCtx | MutationCtx) {
 
   return user;
 }
+
+export const getCurrentUser = query({
+  args: {},
+  handler: async (ctx) => {
+    return await getCurrentUserOrNull(ctx);
+  },
+});
 
 async function ensureUserExists(ctx: MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();

@@ -8,9 +8,10 @@ interface CPTEditorProps {
   parentNodes: Array<{ _id: Id<"nodes">; title: string }>;
   onChange: (entries: CPTEntry[]) => void;
   onValidationChange?: (isValid: boolean, error: string | null) => void;
+  isReadOnly?: boolean;
 }
 
-export function CPTEditor({ cptEntries, parentNodes, onChange, onValidationChange }: CPTEditorProps) {
+export function CPTEditor({ cptEntries, parentNodes, onChange, onValidationChange, isReadOnly }: CPTEditorProps) {
   const [localEntries, setLocalEntries] = useState(cptEntries);
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -88,6 +89,24 @@ export function CPTEditor({ cptEntries, parentNodes, onChange, onValidationChang
   };
 
   if (parentNodes.length === 0) {
+    const probability = localEntries[0]?.probability ?? 0.5;
+
+    if (isReadOnly) {
+      return (
+        <div>
+          <label className="label">
+            <span className="label-text">Base Probability</span>
+          </label>
+          <p className="text-lg font-semibold">
+            {(probability * 100).toFixed(1)}% ({probability.toFixed(2)})
+          </p>
+          <span className="label-text-alt opacity-70">
+            Prior probability (no parents)
+          </span>
+        </div>
+      );
+    }
+
     return (
       <div>
         <label className="label">
@@ -99,12 +118,64 @@ export function CPTEditor({ cptEntries, parentNodes, onChange, onValidationChang
           min="0"
           max="1"
           className="input w-full"
-          value={localEntries[0]?.probability ?? 0.5}
+          value={probability}
           onChange={(e) => handleProbabilityChange(0, parseFloat(e.target.value))}
         />
         <span className="label-text-alt opacity-70">
           Prior probability (no parents)
         </span>
+      </div>
+    );
+  }
+
+  if (isReadOnly) {
+    return (
+      <div className="space-y-3">
+        <label className="label">
+          <span className="label-text font-semibold">Conditional Probability Table</span>
+        </label>
+
+        <div className="overflow-x-auto">
+          <table className="table table-xs">
+            <thead>
+              <tr>
+                {parentNodes.map((parent) => (
+                  <th key={parent._id}>{parent.title}</th>
+                ))}
+                <th>Probability</th>
+              </tr>
+            </thead>
+            <tbody>
+              {localEntries.map((entry, entryIndex) => (
+                <tr key={entryIndex}>
+                  {parentIds.map((parentId) => {
+                    const state = entry.parentStates[parentId];
+                    const displayValue = state === null ? "any" : state ? "true" : "false";
+                    return (
+                      <td key={parentId} className="font-mono">
+                        {displayValue}
+                      </td>
+                    );
+                  })}
+                  <td className="font-semibold">
+                    {(entry.probability * 100).toFixed(1)}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {validationError && (
+          <div className={`text-sm ${validationError.includes('conflicts') ? 'text-error' : 'text-warning'}`}>
+            {validationError}
+          </div>
+        )}
+
+        <div className="text-xs opacity-70">
+          Each rule specifies parent states (true/false/any) and the node probability, with "any" matching
+          both true and false.
+        </div>
       </div>
     );
   }
