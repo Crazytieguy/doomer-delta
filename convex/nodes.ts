@@ -118,6 +118,7 @@ export const update = mutation({
     x: v.optional(v.number()),
     y: v.optional(v.number()),
     cptEntries: v.optional(v.array(cptEntryValidator)),
+    columnOrder: v.optional(v.array(v.id("nodes"))),
   },
   handler: async (ctx, args) => {
     const node = await ctx.db.get(args.id);
@@ -136,6 +137,7 @@ export const update = mutation({
     if (args.description !== undefined) updates.description = args.description;
     if (args.x !== undefined) updates.x = args.x;
     if (args.y !== undefined) updates.y = args.y;
+    if (args.columnOrder !== undefined) updates.columnOrder = args.columnOrder;
     if (args.cptEntries !== undefined) {
       validateCPTEntriesOrThrow(args.cptEntries);
 
@@ -219,15 +221,19 @@ export const remove = mutation({
           };
         });
 
+        const newColumnOrder = childNode.columnOrder?.filter(id => id !== args.id);
+
         try {
           validateCPTEntriesOrThrow(newCptEntries);
           await ctx.db.patch(childNode._id, {
             cptEntries: newCptEntries,
+            columnOrder: newColumnOrder,
           });
         } catch (error) {
           console.warn(`CPT validation failed for node ${childNode._id} after parent deletion. Resetting to base probability.`, error);
           await ctx.db.patch(childNode._id, {
             cptEntries: [{ parentStates: {}, probability: 0.5 }],
+            columnOrder: undefined,
           });
         }
       }

@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpDown } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { CPTEntry } from "../../convex/shared/cptValidation";
@@ -6,19 +6,26 @@ import type { CPTEntry } from "../../convex/shared/cptValidation";
 interface CPTEditorProps {
   cptEntries: CPTEntry[];
   parentNodes: Array<{ _id: Id<"nodes">; title: string }>;
-  onChange: (entries: CPTEntry[]) => void;
+  columnOrder?: Id<"nodes">[];
+  onChange: (entries: CPTEntry[], columnOrder: Id<"nodes">[]) => void;
   onValidationChange?: (isValid: boolean, error: string | null) => void;
   isReadOnly?: boolean;
 }
 
-export function CPTEditor({ cptEntries, parentNodes, onChange, isReadOnly }: CPTEditorProps) {
+export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnOrder, onChange, isReadOnly }: CPTEditorProps) {
   const [localEntries, setLocalEntries] = useState(cptEntries);
+  const [isReorderingMode, setIsReorderingMode] = useState(false);
+  const [columnOrder, setColumnOrder] = useState<Id<"nodes">[]>([]);
 
   useEffect(() => {
     setLocalEntries(cptEntries);
-  }, [cptEntries]);
+    const savedOrder = initialColumnOrder || Object.keys(cptEntries[0]?.parentStates || {}) as Id<"nodes">[];
+    if (savedOrder.length > 0) {
+      setColumnOrder(savedOrder);
+    }
+  }, [cptEntries, initialColumnOrder]);
 
-  const parentIds = parentNodes.map((p) => p._id);
+  const parentIds = columnOrder.length > 0 ? columnOrder : Object.keys(localEntries[0]?.parentStates || {}) as Id<"nodes">[];
 
   // Helper: Find complement row (same parentStates except specified parent is opposite)
   const findComplementRow = (entries: CPTEntry[], entryIndex: number, parentId: string): number | null => {
@@ -145,7 +152,7 @@ export function CPTEditor({ cptEntries, parentNodes, onChange, isReadOnly }: CPT
     }
 
     setLocalEntries(newEntries);
-    onChange(newEntries);
+    onChange(newEntries, parentIds);
   };
 
   const handleProbabilityChange = (entryIndex: number, value: number) => {
@@ -163,7 +170,7 @@ export function CPTEditor({ cptEntries, parentNodes, onChange, isReadOnly }: CPT
       probability: validValue,
     };
     setLocalEntries(newEntries);
-    onChange(newEntries);
+    onChange(newEntries, parentIds);
   };
 
   const handleMoveRowUp = (index: number) => {
@@ -171,7 +178,7 @@ export function CPTEditor({ cptEntries, parentNodes, onChange, isReadOnly }: CPT
     const newEntries = [...localEntries];
     [newEntries[index - 1], newEntries[index]] = [newEntries[index], newEntries[index - 1]];
     setLocalEntries(newEntries);
-    onChange(newEntries);
+    onChange(newEntries, parentIds);
   };
 
   const handleMoveRowDown = (index: number) => {
@@ -179,7 +186,42 @@ export function CPTEditor({ cptEntries, parentNodes, onChange, isReadOnly }: CPT
     const newEntries = [...localEntries];
     [newEntries[index], newEntries[index + 1]] = [newEntries[index + 1], newEntries[index]];
     setLocalEntries(newEntries);
-    onChange(newEntries);
+    onChange(newEntries, parentIds);
+  };
+
+  const reconstructEntriesWithColumnOrder = (entries: CPTEntry[], newOrder: Id<"nodes">[]) => {
+    return entries.map((entry) => {
+      const newParentStates: Record<string, boolean | null> = {};
+      for (const parentId of newOrder) {
+        if (parentId in entry.parentStates) {
+          newParentStates[parentId] = entry.parentStates[parentId];
+        }
+      }
+      return {
+        parentStates: newParentStates,
+        probability: entry.probability,
+      };
+    });
+  };
+
+  const handleMoveColumnLeft = (columnIndex: number) => {
+    if (columnIndex === 0) return;
+    const newOrder = [...columnOrder];
+    [newOrder[columnIndex - 1], newOrder[columnIndex]] = [newOrder[columnIndex], newOrder[columnIndex - 1]];
+    setColumnOrder(newOrder);
+    const reconstructed = reconstructEntriesWithColumnOrder(localEntries, newOrder);
+    setLocalEntries(reconstructed);
+    onChange(reconstructed, newOrder);
+  };
+
+  const handleMoveColumnRight = (columnIndex: number) => {
+    if (columnIndex === parentIds.length - 1) return;
+    const newOrder = [...columnOrder];
+    [newOrder[columnIndex], newOrder[columnIndex + 1]] = [newOrder[columnIndex + 1], newOrder[columnIndex]];
+    setColumnOrder(newOrder);
+    const reconstructed = reconstructEntriesWithColumnOrder(localEntries, newOrder);
+    setLocalEntries(reconstructed);
+    onChange(reconstructed, newOrder);
   };
 
   if (parentNodes.length === 0) {
@@ -270,76 +312,120 @@ export function CPTEditor({ cptEntries, parentNodes, onChange, isReadOnly }: CPT
 
   return (
     <div className="space-y-3">
-      <label className="label">
+      <div className="flex items-center justify-between mb-2">
         <span className="label-text font-semibold">Conditional Probability Table</span>
-      </label>
+        <button
+          type="button"
+          className={`btn btn-xs btn-ghost btn-circle ${isReorderingMode ? "btn-active" : ""}`}
+          onClick={() => setIsReorderingMode(!isReorderingMode)}
+          aria-label={isReorderingMode ? "Hide reordering controls" : "Show reordering controls"}
+          title={isReorderingMode ? "Hide reordering controls" : "Show reordering controls"}
+        >
+          <ArrowUpDown className="w-3 h-3" />
+        </button>
+      </div>
 
       <div className="overflow-x-auto">
         <table className="table table-xs">
           <thead>
             <tr>
-              <th></th>
-              {parentNodes.map((parent) => {
+              {isReorderingMode && <th></th>}
+              {parentIds.map((parentId, columnIndex) => {
+                const parent = parentNodes.find(p => p._id === parentId);
+                if (!parent) return null;
                 const canRemove = localEntries.every(
                   (entry) => entry.parentStates[parent._id] === null
                 );
                 return (
                   <th key={parent._id} className="relative">
-                    <div className="flex items-center gap-1">
-                      <span>{parent.title}</span>
-                      {canRemove && (
-                        <button
-                          type="button"
-                          className="btn btn-xs btn-ghost btn-circle opacity-50 hover:opacity-100"
-                          onClick={() => {
-                            const newEntries = localEntries.map((entry) => {
-                              const newParentStates = { ...entry.parentStates };
-                              delete newParentStates[parent._id];
-                              return {
-                                parentStates: newParentStates,
-                                probability: entry.probability,
-                              };
-                            });
-                            setLocalEntries(newEntries);
-                            onChange(newEntries);
-                          }}
-                          aria-label={`Remove parent ${parent.title}`}
-                        >
-                          ×
-                        </button>
+                    <div className="flex flex-col">
+                      {isReorderingMode && (
+                        <div className="flex justify-center gap-1">
+                          <button
+                            type="button"
+                            className="btn btn-xs btn-ghost px-1"
+                            onClick={() => handleMoveColumnLeft(columnIndex)}
+                            disabled={columnIndex === 0}
+                            aria-label="Move column left"
+                          >
+                            <ArrowLeft className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-xs btn-ghost px-1"
+                            onClick={() => handleMoveColumnRight(columnIndex)}
+                            disabled={columnIndex === parentIds.length - 1}
+                            aria-label="Move column right"
+                          >
+                            <ArrowRight className="w-3 h-3" />
+                          </button>
+                        </div>
                       )}
+                      <div className="flex items-center justify-center gap-1">
+                        <span className="text-center text-xs">{parent.title}</span>
+                        {canRemove && (
+                          <button
+                            type="button"
+                            className="btn btn-xs btn-ghost btn-circle opacity-50 hover:opacity-100"
+                            onClick={() => {
+                              const newEntries = localEntries.map((entry) => {
+                                const newParentStates = { ...entry.parentStates };
+                                delete newParentStates[parent._id];
+                                return {
+                                  parentStates: newParentStates,
+                                  probability: entry.probability,
+                                };
+                              });
+                              const newOrder = parentIds.filter(id => id !== parent._id);
+                              setLocalEntries(newEntries);
+                              setColumnOrder(newOrder);
+                              onChange(newEntries, newOrder);
+                            }}
+                            aria-label={`Remove parent ${parent.title}`}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </th>
                 );
               })}
-              <th>Probability</th>
+              <th>
+                <div className="flex flex-col">
+                  {isReorderingMode && <div className="h-[24px]"></div>}
+                  <span className="text-center text-xs">Probability</span>
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody>
             {localEntries.map((entry, entryIndex) => (
               <tr key={entryIndex}>
-                <td className="!p-0">
-                  <div className="flex">
-                    <button
-                      type="button"
-                      className="btn btn-xs btn-ghost px-1"
-                      onClick={() => handleMoveRowUp(entryIndex)}
-                      disabled={entryIndex === 0}
-                      aria-label="Move rule up"
-                    >
-                      <ArrowUp className="w-3 h-3" />
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-xs btn-ghost px-1"
-                      onClick={() => handleMoveRowDown(entryIndex)}
-                      disabled={entryIndex === localEntries.length - 1}
-                      aria-label="Move rule down"
-                    >
-                      <ArrowDown className="w-3 h-3" />
-                    </button>
-                  </div>
-                </td>
+                {isReorderingMode && (
+                  <td className="!p-0">
+                    <div className="flex">
+                      <button
+                        type="button"
+                        className="btn btn-xs btn-ghost px-1"
+                        onClick={() => handleMoveRowUp(entryIndex)}
+                        disabled={entryIndex === 0}
+                        aria-label="Move rule up"
+                      >
+                        <ArrowUp className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-xs btn-ghost px-1"
+                        onClick={() => handleMoveRowDown(entryIndex)}
+                        disabled={entryIndex === localEntries.length - 1}
+                        aria-label="Move rule down"
+                      >
+                        <ArrowDown className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </td>
+                )}
                 {parentIds.map((parentId) => {
                   const parentNode = parentNodes.find(n => n._id === parentId);
                   const parentLabel = parentNode?.title || parentId;
@@ -351,7 +437,7 @@ export function CPTEditor({ cptEntries, parentNodes, onChange, isReadOnly }: CPT
                   return (
                     <td key={parentId}>
                       <select
-                        className="select select-xs w-full min-w-20 disabled:bg-base-100 disabled:text-base-content/80 disabled:[background-image:none]"
+                        className="select select-xs w-full min-w-12 px-2 [background-position:calc(100%_-_10px)_calc(1px_+_50%),calc(100%_-_6.1px)_calc(1px_+_50%)] disabled:bg-base-100 disabled:text-base-content/80 disabled:[background-image:none]"
                         value={displayValue}
                         onChange={(e) => {
                           const value =

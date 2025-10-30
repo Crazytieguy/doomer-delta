@@ -38,6 +38,7 @@ export type Node = {
     parentStates: Record<string, boolean | null>;
     probability: number;
   }>;
+  columnOrder?: Id<"nodes">[];
 };
 
 interface GraphEditorProps {
@@ -361,6 +362,7 @@ export interface NodeInspectorProps {
       parentStates: Record<string, boolean | null>;
       probability: number;
     }>;
+    columnOrder?: Id<"nodes">[];
   }) => void;
   onDelete: () => void;
   isReadOnly?: boolean;
@@ -378,6 +380,7 @@ export function NodeInspector({
   const [title, setTitle] = useState(node.title);
   const [description, setDescription] = useState(node.description ?? "");
   const [cptEntries, setCptEntries] = useState(node.cptEntries);
+  const [columnOrder, setColumnOrder] = useState<Id<"nodes">[] | undefined>(node.columnOrder);
   const [hasChanges, setHasChanges] = useState(false);
   const [hasCptValidationError, setHasCptValidationError] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -391,8 +394,9 @@ export function NodeInspector({
   // take precedence over local CPT edits. Title/description are NOT synced.
   useEffect(() => {
     setCptEntries(node.cptEntries);
+    setColumnOrder(node.columnOrder);
     setHasCptValidationError(false);
-  }, [node.cptEntries]);
+  }, [node.cptEntries, node.columnOrder]);
 
   useEffect(() => {
     if (node.title === "New Node" && titleInputRef.current) {
@@ -414,12 +418,14 @@ export function NodeInspector({
   const checkForChanges = (
     newTitle: string,
     newDescription: string,
-    newCptEntries: typeof node.cptEntries
+    newCptEntries: typeof node.cptEntries,
+    newColumnOrder: typeof node.columnOrder
   ) => {
     const titleChanged = newTitle.trim() !== node.title;
     const descChanged = newDescription.trim() !== (node.description ?? "");
     const cptChanged = JSON.stringify(newCptEntries) !== JSON.stringify(node.cptEntries);
-    return titleChanged || descChanged || cptChanged;
+    const columnOrderChanged = JSON.stringify(newColumnOrder) !== JSON.stringify(node.columnOrder);
+    return titleChanged || descChanged || cptChanged || columnOrderChanged;
   };
 
   const handleSave = () => {
@@ -428,6 +434,7 @@ export function NodeInspector({
         title: title.trim(),
         description: description.trim() || undefined,
         cptEntries,
+        columnOrder,
       });
       setHasChanges(false);
     }
@@ -437,23 +444,25 @@ export function NodeInspector({
     setTitle(node.title);
     setDescription(node.description ?? "");
     setCptEntries(node.cptEntries);
+    setColumnOrder(node.columnOrder);
     setHasChanges(false);
     setHasCptValidationError(false);
   };
 
   const handleTitleChange = (value: string) => {
     setTitle(value);
-    setHasChanges(checkForChanges(value, description, cptEntries));
+    setHasChanges(checkForChanges(value, description, cptEntries, columnOrder));
   };
 
   const handleDescriptionChange = (value: string) => {
     setDescription(value);
-    setHasChanges(checkForChanges(title, value, cptEntries));
+    setHasChanges(checkForChanges(title, value, cptEntries, columnOrder));
   };
 
-  const handleCptChange = (entries: typeof node.cptEntries) => {
+  const handleCptChange = (entries: typeof node.cptEntries, newColumnOrder: Id<"nodes">[]) => {
     setCptEntries(entries);
-    setHasChanges(checkForChanges(title, description, entries));
+    setColumnOrder(newColumnOrder);
+    setHasChanges(checkForChanges(title, description, entries, newColumnOrder));
   };
 
   return (
@@ -542,6 +551,7 @@ export function NodeInspector({
         <CPTEditor
           cptEntries={cptEntries}
           parentNodes={parentNodes}
+          columnOrder={columnOrder}
           onChange={handleCptChange}
           onValidationChange={(isValid) => setHasCptValidationError(!isValid)}
           isReadOnly={isReadOnly}

@@ -29,5 +29,6 @@ export default defineSchema({
         probability: v.number(),
       }),
     ),
+    columnOrder: v.optional(v.array(v.id("nodes"))),
   }).index("by_modelId", ["modelId"]),
 });
