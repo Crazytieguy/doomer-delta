@@ -3,7 +3,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { Copy, Globe, GlobeLock, GitFork } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { GraphEditor, NodeInspector } from "../components/GraphEditor";
@@ -44,18 +44,9 @@ function ModelDetailPage() {
   const [modelName, setModelName] = useState(model?.name ?? "");
   const [modelDescription, setModelDescription] = useState(model?.description ?? "");
   const [hasModelChanges, setHasModelChanges] = useState(false);
-  const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
   const isOwner = model?.isOwner ?? false;
   const isReadOnly = !isOwner;
-
-  useEffect(() => {
-    const textarea = descriptionRef.current;
-    if (textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = textarea.scrollHeight + 'px';
-    }
-  }, [modelDescription]);
 
   const updateNode = useMutation(api.nodes.update);
   const deleteNode = useMutation(api.nodes.remove);
@@ -231,26 +222,22 @@ function ModelDetailPage() {
                 </button>
               </div>
             </div>
-            <textarea
-              ref={descriptionRef}
-              className="textarea textarea-ghost w-full px-0 opacity-70 resize-none"
-              style={{ minHeight: 'auto', lineHeight: 1.5 }}
-              rows={1}
-              placeholder="Add a description..."
-              value={modelDescription}
-              onChange={(e) => handleModelDescriptionChange(e.target.value)}
-              onInput={(e) => {
-                const target = e.currentTarget;
-                target.style.height = 'auto';
-                target.style.height = target.scrollHeight + 'px';
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  void handleSaveModel();
-                }
-              }}
-            />
+            <div className="grid after:invisible after:whitespace-pre-wrap after:content-[attr(data-value)] after:[grid-area:1/1] after:py-3" data-value={modelDescription || " "}>
+              <textarea
+                className="textarea textarea-ghost w-full px-0 py-3 opacity-70 resize-none overflow-hidden [grid-area:1/1]"
+                style={{ lineHeight: 1.5 }}
+                rows={1}
+                placeholder="Add a description..."
+                value={modelDescription}
+                onChange={(e) => handleModelDescriptionChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    void handleSaveModel();
+                  }
+                }}
+              />
+            </div>
             {hasModelChanges && (
               <div className="flex gap-2 mt-2">
                 <button type="submit" className="btn btn-primary btn-sm" disabled={!modelName.trim()}>
