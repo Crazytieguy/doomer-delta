@@ -326,9 +326,9 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
       </div>
 
       <div className="overflow-x-auto">
-        <table className="table table-xs">
+        <table className="table table-xs table-zebra">
           <thead>
-            <tr>
+            <tr className="bg-base-300/40">
               {isReorderingMode && <th></th>}
               {parentIds.map((parentId, columnIndex) => {
                 const parent = parentNodes.find(p => p._id === parentId);
@@ -437,7 +437,7 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
                   return (
                     <td key={parentId}>
                       <select
-                        className="select select-xs w-full min-w-12 px-2 [background-position:calc(100%_-_10px)_calc(1px_+_50%),calc(100%_-_6.1px)_calc(1px_+_50%)] disabled:bg-base-100 disabled:text-base-content/80 disabled:[background-image:none]"
+                        className="select select-xs w-full min-w-12 px-2 bg-gradient-to-r from-base-100 to-base-100/80 [background-position:calc(100%_-_10px)_calc(1px_+_50%),calc(100%_-_6.1px)_calc(1px_+_50%)] disabled:bg-base-100 disabled:text-base-content/80 disabled:[background-image:none]"
                         value={displayValue}
                         onChange={(e) => {
                           const value =

@@ -35,13 +35,10 @@ function PublicModelsPage() {
                 key={model._id}
                 to="/models/$modelId"
                 params={{ modelId: model._id }}
-                className="card card-border bg-base-200 hover:bg-base-300 transition-colors"
+                className="card card-border bg-gradient-to-br from-base-200 via-base-200 to-base-300/30 hover:shadow-lg transition-shadow duration-300"
               >
                 <div className="card-body">
-                  <div className="flex justify-between items-start">
-                    <h3 className="card-title">{model.name}</h3>
-                    <div className="status status-success"></div>
-                  </div>
+                  <h3 className="card-title">{model.name}</h3>
                   {model.description && (
                     <p className="text-sm opacity-70">{model.description}</p>
                   )}

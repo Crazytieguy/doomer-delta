@@ -55,11 +55,11 @@ function ProbabilityNode({ data }: NodeProps) {
   const label = data.label as string;
 
   return (
-    <div className="px-5 py-3 shadow-lg rounded-lg bg-base-100 border-2 border-base-300 min-w-[140px] transition-all duration-200 hover:shadow-xl hover:border-primary/30">
+    <div className="px-5 py-3 shadow-md rounded-lg bg-gradient-to-b from-base-100 to-base-100/80 border border-base-300 border-t-2 border-t-primary/40 min-w-[140px] transition-all duration-200 hover:shadow-lg hover:border-primary/50">
       <Handle
         type="target"
         position={Position.Top}
-        className="w-3 h-3 !bg-base-content/40 !border-2 !border-base-100 transition-colors duration-200 hover:!bg-primary hover:scale-125"
+        className="w-3 h-3 !bg-base-content/40 !border-2 !border-base-100 transition-colors duration-200 hover:!bg-primary"
       />
       <div className="text-center">
         <div className="font-medium text-base text-base-content leading-tight">{label}</div>
@@ -72,7 +72,7 @@ function ProbabilityNode({ data }: NodeProps) {
       <Handle
         type="source"
         position={Position.Bottom}
-        className="w-3 h-3 !bg-base-content/40 !border-2 !border-base-100 transition-colors duration-200 hover:!bg-primary hover:scale-125"
+        className="w-3 h-3 !bg-base-content/40 !border-2 !border-base-100 transition-colors duration-200 hover:!bg-primary"
       />
     </div>
   );
@@ -408,7 +408,7 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect,
   }, [onNodeSelect]);
 
   return (
-    <div className="w-full h-[calc(100vh-16rem)] bg-base-200 rounded-lg overflow-hidden">
+    <div className="w-full h-[calc(100vh-16rem)] bg-base-200 rounded-lg overflow-hidden shadow-md">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -430,11 +430,11 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect,
         <Controls />
         <MiniMap />
         {isReadOnly ? (
-          <Panel position="top-left" className="bg-warning/20 border-2 border-warning px-3 py-2 rounded-lg shadow text-sm">
+          <Panel position="top-left" className="bg-warning/10 border border-warning/50 px-3 py-2 rounded-lg shadow-sm text-sm text-warning">
             Read-only mode
           </Panel>
         ) : (
-          <Panel position="top-left" className="bg-base-100 px-3 py-2 rounded-lg shadow text-sm">
+          <Panel position="top-left" className="bg-base-100/90 backdrop-blur-sm border border-base-300/50 px-3 py-2 rounded-lg shadow-sm text-sm">
             Double-click canvas to create node
           </Panel>
         )}
@@ -577,7 +577,7 @@ export function NodeInspector({
           </button>
         </div>
         <button
-          className="btn btn-square btn-sm btn-ghost"
+          className="btn btn-square btn-sm btn-ghost hover:bg-base-300/50"
           onClick={onClose}
           aria-label="Close node inspector"
         >

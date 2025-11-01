@@ -53,28 +53,39 @@ export function SensitivityPanel({ nodes, targetNodeId }: SensitivityPanelProps)
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 mb-2">
-        <TrendingUp className="w-4 h-4" />
+        <TrendingUp className="w-4 h-4 opacity-75" />
         <h4 className="font-semibold text-sm">Sensitivity Analysis</h4>
       </div>
-      <p className="text-xs opacity-70 mb-3">
-        Shows how forcing each influential ancestor true vs false changes this node's probability:
+      <p className="text-xs opacity-60 mb-4">
+        How each parent influences this node's probability
       </p>
-      <div className="space-y-2">
+      <div className="space-y-3">
         {sensitivities.map(({ nodeId, nodeName, sensitivity }) => {
           const isPositive = sensitivity >= 0;
+          const absValue = Math.abs(sensitivity);
           return (
-            <div key={nodeId} className="space-y-1">
+            <div key={nodeId} className="space-y-1.5">
               <div className="flex justify-between items-baseline">
                 <span className="text-sm font-medium">{nodeName}</span>
-                <span className={`text-xs font-medium ${isPositive ? 'text-success' : 'text-error'}`}>
+                <span className={`text-xs font-semibold tabular-nums ${isPositive ? 'text-success' : 'text-error'}`}>
                   {sensitivity >= 0 ? '+' : ''}{sensitivity.toFixed(3)}
                 </span>
               </div>
-              <div className="w-full bg-base-300 rounded-full h-2">
-                <div
-                  className={`${isPositive ? 'bg-success' : 'bg-error'} h-2 rounded-full transition-all`}
-                  style={{ width: `${(Math.abs(sensitivity) / maxSensitivity) * 100}%` }}
-                />
+              <div className="w-full bg-base-300/50 rounded-full h-1.5 flex">
+                {isPositive ? (
+                  <div
+                    className="bg-success rounded-full transition-all"
+                    style={{ width: `${(absValue / maxSensitivity) * 100}%` }}
+                  />
+                ) : (
+                  <div className="flex-1" />
+                )}
+                {!isPositive && (
+                  <div
+                    className="bg-error rounded-full transition-all"
+                    style={{ width: `${(absValue / maxSensitivity) * 100}%` }}
+                  />
+                )}
               </div>
             </div>
           );

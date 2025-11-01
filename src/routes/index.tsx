@@ -15,15 +15,18 @@ function HomePage() {
       </Authenticated>
 
       <Unauthenticated>
-        <div className="text-center">
-          <div className="not-prose flex justify-center mb-4">
-            <Network className="w-16 h-16 text-primary" />
+        <div className="text-center py-12">
+          <div className="not-prose flex justify-center mb-6">
+            <div className="relative inline-block">
+              <div className="absolute inset-0 bg-primary/20 rounded-full blur-2xl"></div>
+              <Network className="w-16 h-16 text-primary relative z-10" />
+            </div>
           </div>
           <h1>Bayesian World Models</h1>
           <p>Build, visualize, and share Bayesian network world-models.</p>
-          <div className="not-prose mt-4">
+          <div className="not-prose mt-6">
             <SignInButton mode="modal">
-              <button className="btn btn-primary btn-lg">Get Started</button>
+              <button className="btn btn-primary btn-lg shadow-lg">Get Started</button>
             </SignInButton>
           </div>
         </div>

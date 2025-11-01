@@ -64,7 +64,7 @@ function RootComponent() {
                 />
                 <div className="drawer-content container mx-auto flex flex-col h-full">
                   {/* Navbar */}
-                  <header className="navbar bg-base-100 shadow-sm border-b border-base-300">
+                  <header className="navbar bg-gradient-to-r from-base-100 via-base-100 to-base-100/95 shadow-md border-b border-base-300/50">
                     <div className="navbar-start">
                       <label
                         htmlFor="drawer-toggle"
@@ -74,18 +74,18 @@ function RootComponent() {
                       </label>
                       <Link
                         to="/"
-                        className="btn btn-ghost normal-case text-xl"
+                        className="btn btn-ghost normal-case text-xl font-semibold"
                       >
                         Doomer Delta
                       </Link>
                     </div>
                     <div className="navbar-center hidden lg:flex">
-                      <nav className="flex gap-1">
+                      <nav className="flex gap-2">
                         <Link
                           to="/models/my"
                           className="btn btn-ghost"
                           activeProps={{
-                            className: "btn btn-ghost btn-active",
+                            className: "btn btn-ghost btn-active border-b-2 border-primary",
                           }}
                         >
                           My Models
@@ -94,7 +94,7 @@ function RootComponent() {
                           to="/models/public"
                           className="btn btn-ghost"
                           activeProps={{
-                            className: "btn btn-ghost btn-active",
+                            className: "btn btn-ghost btn-active border-b-2 border-primary",
                           }}
                         >
                           Public Models
@@ -124,14 +124,14 @@ function RootComponent() {
                   ></label>
                   <div className="menu p-4 w-64 min-h-full bg-base-200 text-base-content flex flex-col">
                     <div className="flex-1">
-                      <div className="menu-title mb-4">Menu</div>
-                      <ul className="space-y-2">
+                      <div className="menu-title mb-4 opacity-75">Menu</div>
+                      <ul className="space-y-1">
                         <li>
                           <Link
                             to="/models/my"
                             onClick={() => setIsSidebarOpen(false)}
                             activeProps={{
-                              className: "active",
+                              className: "menu-active border-l-4 border-primary",
                             }}
                             className="flex items-center p-2"
                           >
@@ -143,7 +143,7 @@ function RootComponent() {
                             to="/models/public"
                             onClick={() => setIsSidebarOpen(false)}
                             activeProps={{
-                              className: "active",
+                              className: "menu-active border-l-4 border-primary",
                             }}
                             className="flex items-center p-2"
                           >
@@ -152,7 +152,7 @@ function RootComponent() {
                         </li>
                       </ul>
                     </div>
-                    <div className="mt-auto py-4 border-t border-base-300 flex justify-center items-center">
+                    <div className="mt-auto py-4 border-t border-base-300/50 flex justify-center items-center">
                       <UserButton />
                     </div>
                   </div>
@@ -160,10 +160,10 @@ function RootComponent() {
               </div>
             </Authenticated>
             <Unauthenticated>
-              <header className="navbar bg-base-100 shadow-sm border-b border-base-300">
+              <header className="navbar bg-gradient-to-r from-base-100 via-base-100 to-base-100/95 shadow-md border-b border-base-300/50">
                 <div className="container mx-auto flex justify-between w-full">
                   <div className="navbar-start">
-                    <h1 className="font-semibold">Doomer Delta</h1>
+                    <h1 className="font-semibold text-lg">Doomer Delta</h1>
                   </div>
                   <div className="navbar-end">
                     <SignInButton mode="modal">
@@ -172,7 +172,7 @@ function RootComponent() {
                       </button>
                     </SignInButton>
                     <SignUpButton mode="modal">
-                      <button className="btn btn-ghost btn-sm ml-2">
+                      <button className="btn btn-outline btn-sm ml-2">
                         Sign up
                       </button>
                     </SignUpButton>
