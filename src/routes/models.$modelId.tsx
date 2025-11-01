@@ -222,9 +222,9 @@ function ModelDetailPage() {
                 </button>
               </div>
             </div>
-            <div className="grid after:invisible after:whitespace-pre-wrap after:content-[attr(data-value)] after:[grid-area:1/1] after:py-3" data-value={modelDescription || " "}>
+            <div className="grid mb-4 after:invisible after:whitespace-pre-wrap after:content-[attr(data-value)] after:[grid-area:1/1] after:text-sm after:border after:border-solid after:border-[#0000] after:[line-height:1.5] after:py-1" data-value={modelDescription || " "}>
               <textarea
-                className="textarea textarea-ghost w-full px-0 py-3 opacity-70 resize-none overflow-hidden [grid-area:1/1]"
+                className="textarea textarea-ghost w-full px-0 py-1 opacity-70 resize-none overflow-hidden [grid-area:1/1] [min-height:auto]"
                 style={{ lineHeight: 1.5 }}
                 rows={1}
                 placeholder="Add a description..."
@@ -239,7 +239,7 @@ function ModelDetailPage() {
               />
             </div>
             {hasModelChanges && (
-              <div className="flex gap-2 mt-2">
+              <div className="flex gap-2 mt-2 mb-4">
                 <button type="submit" className="btn btn-primary btn-sm" disabled={!modelName.trim()}>
                   Save
                 </button>
