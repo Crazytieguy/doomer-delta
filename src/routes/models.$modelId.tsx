@@ -4,6 +4,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { Copy, Globe, GlobeLock, GitFork } from "lucide-react";
 import { useState } from "react";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { GraphEditor, NodeInspector } from "../components/GraphEditor";
@@ -252,8 +253,60 @@ function ModelDetailPage() {
         )}
       </div>
 
-      <div className="not-prose flex flex-1 gap-4 overflow-hidden">
-        <div className="flex-1">
+      <div className="not-prose flex flex-1 overflow-hidden">
+        {/* Desktop layout with resizable panels */}
+        <PanelGroup autoSaveId="model-editor-layout" direction="horizontal" className="hidden sm:flex w-full">
+          <Panel id="graph" order={1}>
+            <GraphEditor
+              modelId={modelId as Id<"models">}
+              nodes={nodes}
+              selectedNode={selectedNode}
+              onNodeSelect={handleNodeSelect}
+              isReadOnly={isReadOnly}
+            />
+          </Panel>
+
+          {selectedNodeData && (
+            <>
+              <PanelResizeHandle className="w-1 bg-base-300 hover:bg-primary transition-colors" />
+              <Panel id="inspector" order={2} defaultSize={30} minSize={25}>
+                <div className="h-full bg-base-100 px-6 overflow-y-auto">
+                  <NodeInspector
+                    key={selectedNode}
+                    node={selectedNodeData}
+                    allNodes={nodes}
+                    onClose={handleCloseSidebar}
+                    onUpdate={(updates) => {
+                      void (async () => {
+                        try {
+                          await updateNode({ id: selectedNode!, ...updates });
+                          showSuccess("Node updated successfully");
+                        } catch (error) {
+                          showError(error);
+                        }
+                      })();
+                    }}
+                    onDelete={() => {
+                      void (async () => {
+                        try {
+                          await deleteNode({ id: selectedNode! });
+                          handleCloseSidebar();
+                          showSuccess("Node deleted successfully");
+                        } catch (error) {
+                          showError(error);
+                        }
+                      })();
+                    }}
+                    isReadOnly={isReadOnly}
+                  />
+                </div>
+              </Panel>
+            </>
+          )}
+        </PanelGroup>
+
+        {/* Mobile layout with overlay */}
+        <div className="flex-1 sm:hidden w-full">
           <GraphEditor
             modelId={modelId as Id<"models">}
             nodes={nodes}
@@ -270,7 +323,7 @@ function ModelDetailPage() {
               onClick={handleCloseSidebar}
               onTouchMove={(e) => e.preventDefault()}
             />
-            <div className="fixed inset-y-0 right-0 w-[85vw] max-w-sm sm:relative sm:w-auto sm:min-w-[28rem] sm:max-w-3xl h-full bg-base-100 p-6 rounded-lg overflow-y-auto border border-base-300 z-30 sm:z-auto">
+            <div className="fixed inset-y-0 right-0 w-[85vw] max-w-sm h-full bg-base-100 p-6 rounded-lg overflow-y-auto border border-base-300 z-30 sm:hidden">
               <NodeInspector
                 key={selectedNode}
                 node={selectedNodeData}
