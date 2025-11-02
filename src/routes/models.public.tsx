@@ -1,18 +1,29 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { usePaginatedQuery } from "convex/react";
+import { convexQuery } from "@convex-dev/react-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { Globe } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 
+const publicModelsQueryOptions = convexQuery(api.models.listPublicInitial, {});
+
 export const Route = createFileRoute("/models/public")({
+  loader: async ({ context: { queryClient } }) => {
+    await queryClient.ensureQueryData(publicModelsQueryOptions);
+  },
   component: PublicModelsPage,
 });
 
 function PublicModelsPage() {
-  const { results, status, loadMore } = usePaginatedQuery(
+  const { data: initialModels } = useSuspenseQuery(publicModelsQueryOptions);
+
+  const { results: paginatedResults, status, loadMore } = usePaginatedQuery(
     api.models.listPublic,
     {},
     { initialNumItems: 12 },
   );
+
+  const displayModels = status !== "LoadingFirstPage" ? paginatedResults : initialModels;
 
   return (
     <div>
@@ -21,7 +32,7 @@ function PublicModelsPage() {
         <h1 className="text-2xl font-bold">Public Models</h1>
       </div>
 
-      {results && results.length === 0 ? (
+      {displayModels.length === 0 ? (
         <div className="not-prose">
           <div className="p-8 bg-base-200 rounded-lg">
             <p className="opacity-70">No public models yet.</p>
@@ -30,7 +41,7 @@ function PublicModelsPage() {
       ) : (
         <>
           <div className="not-prose grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {results?.map((model) => (
+            {displayModels.map((model) => (
               <Link
                 key={model._id}
                 to="/models/$modelId"

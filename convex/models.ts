@@ -45,6 +45,29 @@ export const listPublic = query({
   },
 });
 
+export const listPublicInitial = query({
+  args: {},
+  handler: async (ctx) => {
+    const models = await ctx.db
+      .query("models")
+      .withIndex("by_isPublic", (q) => q.eq("isPublic", true))
+      .order("desc")
+      .take(12);
+
+    const modelsWithOwners = await Promise.all(
+      models.map(async (model) => {
+        const owner = await ctx.db.get(model.ownerId);
+        return {
+          ...model,
+          ownerName: owner?.name ?? "Unknown",
+        };
+      }),
+    );
+
+    return modelsWithOwners;
+  },
+});
+
 export const get = query({
   args: { id: v.id("models") },
   handler: async (ctx, args) => {
