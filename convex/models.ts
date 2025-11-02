@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import { paginationOptsValidator } from "convex/server";
 import { getCurrentUserOrNull, getCurrentUserOrCrash } from "./users";
 import type { Id } from "./_generated/dataModel";
+import { syncColumnOrderWithCptEntries } from "./shared/cptValidation";
 
 export const listMyModels = query({
   args: {},
@@ -219,8 +220,23 @@ export const clone = mutation({
         };
       });
 
+      const remappedColumnOrder = node.columnOrder
+        ?.map((oldParentId) => {
+          const newParentId = nodeIdMap.get(oldParentId);
+          if (!newParentId) {
+            throw new ConvexError(
+              `Failed to find cloned parent node for columnOrder: ${oldParentId}`,
+            );
+          }
+          return newParentId as Id<"nodes">;
+        });
+
       await ctx.db.patch(newNodeId as Id<"nodes">, {
         cptEntries: remappedCptEntries,
+        columnOrder: remappedColumnOrder || syncColumnOrderWithCptEntries(
+          remappedCptEntries,
+          undefined,
+        ),
       });
     }
 

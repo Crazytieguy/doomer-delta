@@ -1,7 +1,41 @@
+import type { Id } from "../_generated/dataModel";
+
 export type CPTEntry = {
   parentStates: Record<string, boolean | null>;
   probability: number;
 };
+
+/**
+ * Syncs columnOrder with parent IDs in cptEntries.
+ * Preserves existing order, removes deleted parents, appends new parents.
+ */
+export function syncColumnOrderWithCptEntries(
+  cptEntries: CPTEntry[],
+  existingColumnOrder: Id<"nodes">[] | undefined,
+): Id<"nodes">[] {
+  const newParentIds = new Set<string>();
+  for (const entry of cptEntries) {
+    Object.keys(entry.parentStates).forEach((id) => newParentIds.add(id));
+  }
+
+  const existingOrder = existingColumnOrder || [];
+  const newColumnOrder: Id<"nodes">[] = [];
+
+  // Preserve existing order for parents still present
+  for (const id of existingOrder) {
+    if (newParentIds.has(id)) {
+      newColumnOrder.push(id);
+      newParentIds.delete(id);
+    }
+  }
+
+  // Append new parents to the end
+  for (const id of newParentIds) {
+    newColumnOrder.push(id as Id<"nodes">);
+  }
+
+  return newColumnOrder;
+}
 
 export function expandEntry(entry: CPTEntry, parentIds: string[]): string[] {
   const nullIndices: number[] = [];

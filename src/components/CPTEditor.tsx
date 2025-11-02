@@ -34,9 +34,7 @@ export function CPTEditor({
     const savedOrder =
       initialColumnOrder ||
       (Object.keys(cptEntries[0]?.parentStates || {}) as Id<"nodes">[]);
-    if (savedOrder.length > 0) {
-      setColumnOrder(savedOrder);
-    }
+    setColumnOrder(savedOrder);
   }, [cptEntries, initialColumnOrder]);
 
   const parentIds =
@@ -333,9 +331,10 @@ export function CPTEditor({
           <table className="table table-xs">
             <thead>
               <tr>
-                {parentNodes.map((parent) => (
-                  <th key={parent._id}>{parent.title}</th>
-                ))}
+                {parentIds.map((parentId) => {
+                  const parent = parentNodes.find((p) => p._id === parentId);
+                  return <th key={parentId}>{parent?.title ?? "Unknown"}</th>;
+                })}
                 <th>Probability</th>
               </tr>
             </thead>

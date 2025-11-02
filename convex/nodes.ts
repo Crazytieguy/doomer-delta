@@ -3,7 +3,11 @@ import { mutation, query, type MutationCtx } from "./_generated/server";
 import { getCurrentUserOrNull, getCurrentUserOrCrash } from "./users";
 import { ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { type CPTEntry, validateCPTEntries } from "./shared/cptValidation";
+import {
+  type CPTEntry,
+  validateCPTEntries,
+  syncColumnOrderWithCptEntries,
+} from "./shared/cptValidation";
 
 const cptEntryValidator = v.object({
   parentStates: v.record(v.id("nodes"), v.union(v.boolean(), v.null())),
@@ -139,7 +143,7 @@ export const update = mutation({
     if (args.description !== undefined) updates.description = args.description;
     if (args.x !== undefined) updates.x = args.x;
     if (args.y !== undefined) updates.y = args.y;
-    if (args.columnOrder !== undefined) updates.columnOrder = args.columnOrder;
+
     if (args.cptEntries !== undefined) {
       validateCPTEntriesOrThrow(args.cptEntries);
 
@@ -186,11 +190,58 @@ export const update = mutation({
 
       updates.cptEntries = args.cptEntries;
 
-      if (args.columnOrder === undefined && node.columnOrder !== undefined) {
-        updates.columnOrder = node.columnOrder.filter((id) =>
-          newParentIds.has(id),
+      if (args.columnOrder === undefined) {
+        updates.columnOrder = syncColumnOrderWithCptEntries(
+          args.cptEntries,
+          node.columnOrder,
+        );
+      } else {
+        const columnOrderSet = new Set(args.columnOrder);
+        if (columnOrderSet.size !== args.columnOrder.length) {
+          throw new ConvexError(
+            "columnOrder contains duplicate parent IDs",
+          );
+        }
+        if (columnOrderSet.size !== newParentIds.size) {
+          throw new ConvexError(
+            "columnOrder must contain exactly the same parent IDs as cptEntries",
+          );
+        }
+        for (const id of args.columnOrder) {
+          if (!newParentIds.has(id)) {
+            throw new ConvexError(
+              `columnOrder contains invalid parent ID: ${id}`,
+            );
+          }
+        }
+        updates.columnOrder = args.columnOrder;
+      }
+    } else if (args.columnOrder !== undefined) {
+      // Validate standalone columnOrder update against existing cptEntries
+      const existingParentIds = new Set<string>();
+      for (const entry of node.cptEntries) {
+        Object.keys(entry.parentStates).forEach((id) =>
+          existingParentIds.add(id),
         );
       }
+
+      const columnOrderSet = new Set(args.columnOrder);
+      if (columnOrderSet.size !== args.columnOrder.length) {
+        throw new ConvexError("columnOrder contains duplicate parent IDs");
+      }
+      if (columnOrderSet.size !== existingParentIds.size) {
+        throw new ConvexError(
+          "columnOrder must contain exactly the same parent IDs as existing cptEntries",
+        );
+      }
+      for (const id of args.columnOrder) {
+        if (!existingParentIds.has(id)) {
+          throw new ConvexError(
+            `columnOrder contains invalid parent ID: ${id}`,
+          );
+        }
+      }
+      updates.columnOrder = args.columnOrder;
     }
 
     await ctx.db.patch(args.id, updates);
@@ -244,13 +295,12 @@ export const remove = mutation({
           };
         });
 
-        const newColumnOrder = childNode.columnOrder?.filter(
-          (id) => id !== args.id,
-        );
-
         await ctx.db.patch(childNode._id, {
           cptEntries: newCptEntries,
-          columnOrder: newColumnOrder,
+          columnOrder: syncColumnOrderWithCptEntries(
+            newCptEntries,
+            childNode.columnOrder,
+          ),
         });
       }
     }

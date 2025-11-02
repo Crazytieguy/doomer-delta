@@ -23,6 +23,7 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { syncColumnOrderWithCptEntries } from "../../convex/shared/cptValidation";
 import { CPTEditor } from "./CPTEditor";
 import { SensitivityPanel } from "./SensitivityPanel";
 import { useToast } from "./ToastContext";
@@ -116,8 +117,7 @@ function GraphEditorInner({
         const updatedNodes = currentNodes.map((node) => {
           if (node._id !== args.id) return node;
 
-          return {
-            ...node,
+          const updates: Partial<typeof node> = {
             ...(args.title !== undefined && { title: args.title }),
             ...(args.description !== undefined && {
               description: args.description,
@@ -130,6 +130,18 @@ function GraphEditorInner({
             ...(args.columnOrder !== undefined && {
               columnOrder: args.columnOrder,
             }),
+          };
+
+          if (args.cptEntries !== undefined && args.columnOrder === undefined) {
+            updates.columnOrder = syncColumnOrderWithCptEntries(
+              args.cptEntries,
+              node.columnOrder,
+            );
+          }
+
+          return {
+            ...node,
+            ...updates,
           };
         });
 
@@ -151,14 +163,19 @@ function GraphEditorInner({
           );
           if (!hasDeletedParent) return node;
 
+          const newCptEntries = node.cptEntries.map((entry) => {
+            const newParentStates = { ...entry.parentStates };
+            delete newParentStates[args.id];
+            return { ...entry, parentStates: newParentStates };
+          });
+
           return {
             ...node,
-            cptEntries: node.cptEntries.map((entry) => {
-              const newParentStates = { ...entry.parentStates };
-              delete newParentStates[args.id];
-              return { ...entry, parentStates: newParentStates };
-            }),
-            columnOrder: node.columnOrder?.filter((id) => id !== args.id),
+            cptEntries: newCptEntries,
+            columnOrder: syncColumnOrderWithCptEntries(
+              newCptEntries,
+              node.columnOrder,
+            ),
           };
         });
 
@@ -365,16 +382,12 @@ function GraphEditorInner({
                 probability: entry.probability,
               };
             });
-            const newColumnOrder = childNode.columnOrder?.filter(
-              (id) => id !== parentId,
-            );
 
             void (async () => {
               try {
                 await updateNode({
                   id: childId as Id<"nodes">,
                   cptEntries: newCptEntries,
-                  columnOrder: newColumnOrder,
                 });
                 showSuccess("Edge removed successfully");
               } catch (error) {
