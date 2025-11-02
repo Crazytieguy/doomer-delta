@@ -1,4 +1,10 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  type ReactNode,
+} from "react";
 
 export type Toast = {
   id: string;
@@ -32,17 +38,25 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const showError = useCallback((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    addToast(message, "error");
-  }, [addToast]);
+  const showError = useCallback(
+    (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      addToast(message, "error");
+    },
+    [addToast],
+  );
 
-  const showSuccess = useCallback((message: string) => {
-    addToast(message, "success");
-  }, [addToast]);
+  const showSuccess = useCallback(
+    (message: string) => {
+      addToast(message, "success");
+    },
+    [addToast],
+  );
 
   return (
-    <ToastContext.Provider value={{ toasts, addToast, removeToast, showError, showSuccess }}>
+    <ToastContext.Provider
+      value={{ toasts, addToast, removeToast, showError, showSuccess }}
+    >
       {children}
       <div className="toast toast-end z-50">
         {toasts.map((toast) => (

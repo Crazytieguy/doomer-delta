@@ -47,7 +47,9 @@ function MyModelsPage() {
       {models.length === 0 ? (
         <div className="not-prose">
           <div className="p-8 bg-base-200 rounded-lg">
-            <p className="opacity-70">No models yet. Create your first model!</p>
+            <p className="opacity-70">
+              No models yet. Create your first model!
+            </p>
           </div>
         </div>
       ) : (

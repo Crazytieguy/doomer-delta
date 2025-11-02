@@ -34,7 +34,7 @@ export const listPublic = query({
           ...model,
           ownerName: owner?.name ?? "Unknown",
         };
-      })
+      }),
     );
 
     return {
@@ -207,7 +207,9 @@ export const clone = mutation({
         for (const [oldParentId, state] of Object.entries(entry.parentStates)) {
           const newParentId = nodeIdMap.get(oldParentId);
           if (!newParentId) {
-            throw new ConvexError(`Failed to find cloned parent node for ${oldParentId}`);
+            throw new ConvexError(
+              `Failed to find cloned parent node for ${oldParentId}`,
+            );
           }
           remappedParentStates[newParentId as Id<"nodes">] = state;
         }

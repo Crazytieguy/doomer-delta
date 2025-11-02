@@ -22,13 +22,16 @@ interface SensitivityPanelProps {
   targetNodeId: Id<"nodes">;
 }
 
-export function SensitivityPanel({ nodes, targetNodeId }: SensitivityPanelProps) {
+export function SensitivityPanel({
+  nodes,
+  targetNodeId,
+}: SensitivityPanelProps) {
   const sensitivities = useMemo(() => {
     const sensitivityMap = computeSensitivity(nodes, targetNodeId);
 
     const results = Array.from(sensitivityMap.entries())
       .map(([nodeId, sensitivity]) => {
-        const node = nodes.find(n => n._id === nodeId);
+        const node = nodes.find((n) => n._id === nodeId);
         return {
           nodeId,
           nodeName: node?.title ?? "Unknown",
@@ -43,12 +46,11 @@ export function SensitivityPanel({ nodes, targetNodeId }: SensitivityPanelProps)
   if (sensitivities.length === 0) {
     return (
       <div className="text-sm opacity-70">
-        This node has no parent nodes, so its probability is independent and not affected by other nodes in the network.
+        This node has no parent nodes, so its probability is independent and not
+        affected by other nodes in the network.
       </div>
     );
   }
-
-  const maxSensitivity = Math.max(...sensitivities.map(s => Math.abs(s.sensitivity)));
 
   return (
     <div className="space-y-3">
@@ -67,25 +69,18 @@ export function SensitivityPanel({ nodes, targetNodeId }: SensitivityPanelProps)
             <div key={nodeId} className="space-y-1.5">
               <div className="flex justify-between items-baseline">
                 <span className="text-sm font-medium">{nodeName}</span>
-                <span className={`text-xs font-semibold tabular-nums ${isPositive ? 'text-success' : 'text-error'}`}>
-                  {sensitivity >= 0 ? '+' : ''}{sensitivity.toFixed(3)}
+                <span
+                  className={`text-xs font-semibold tabular-nums ${isPositive ? "text-success" : "text-error"}`}
+                >
+                  {sensitivity >= 0 ? "+" : ""}
+                  {sensitivity.toFixed(3)}
                 </span>
               </div>
-              <div className="w-full bg-base-300/50 rounded-full h-1.5 flex">
-                {isPositive ? (
-                  <div
-                    className="bg-success rounded-full transition-all"
-                    style={{ width: `${(absValue / maxSensitivity) * 100}%` }}
-                  />
-                ) : (
-                  <div className="flex-1" />
-                )}
-                {!isPositive && (
-                  <div
-                    className="bg-error rounded-full transition-all"
-                    style={{ width: `${(absValue / maxSensitivity) * 100}%` }}
-                  />
-                )}
+              <div className="w-full bg-base-300/40 rounded-full h-2">
+                <div
+                  className={`${isPositive ? "bg-success" : "bg-error"} h-2 rounded-full transition-all`}
+                  style={{ width: `${Math.abs(absValue) * 100}%` }}
+                />
               </div>
             </div>
           );

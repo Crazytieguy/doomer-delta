@@ -26,7 +26,9 @@ function HomePage() {
           <p>Build, visualize, and share Bayesian network world-models.</p>
           <div className="not-prose mt-6">
             <SignInButton mode="modal">
-              <button className="btn btn-primary btn-lg shadow-lg">Get Started</button>
+              <button className="btn btn-primary btn-lg shadow-lg">
+                Get Started
+              </button>
             </SignInButton>
           </div>
         </div>

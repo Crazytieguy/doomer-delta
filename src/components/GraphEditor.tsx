@@ -1,30 +1,30 @@
+import { computeMarginalProbabilities } from "@/lib/bayesianInference";
 import { useMutation } from "convex/react";
 import { Trash2 } from "lucide-react";
-import { useCallback, useState, useEffect, useRef, useMemo } from "react";
-import { CPTEditor } from "./CPTEditor";
-import { SensitivityPanel } from "./SensitivityPanel";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactFlow, {
-  Controls,
-  MiniMap,
-  Node as FlowNode,
-  Edge as FlowEdge,
-  Connection,
-  NodeChange,
-  EdgeChange,
-  Panel,
-  ReactFlowProvider,
-  useReactFlow,
-  useNodesState,
-  useEdgesState,
   addEdge,
+  Connection,
+  Controls,
+  EdgeChange,
+  Edge as FlowEdge,
+  Node as FlowNode,
   Handle,
-  Position,
+  MiniMap,
+  NodeChange,
   NodeProps,
+  Panel,
+  Position,
+  ReactFlowProvider,
+  useEdgesState,
+  useNodesState,
+  useReactFlow,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { computeMarginalProbabilities } from "@/lib/bayesianInference";
+import { CPTEditor } from "./CPTEditor";
+import { SensitivityPanel } from "./SensitivityPanel";
 import { useToast } from "./ToastContext";
 
 export type Node = {
@@ -55,25 +55,19 @@ function ProbabilityNode({ data }: NodeProps) {
   const label = data.label as string;
 
   return (
-    <div className="px-5 py-3 shadow-md rounded-lg bg-gradient-to-b from-base-100 to-base-100/80 border border-base-300 border-t-2 border-t-primary/40 min-w-[140px] transition-all duration-200 hover:shadow-lg hover:border-primary/50">
-      <Handle
-        type="target"
-        position={Position.Top}
-        className="w-3 h-3 !bg-base-content/40 !border-2 !border-base-100 transition-colors duration-200 hover:!bg-primary"
-      />
+    <div className="px-5 py-3 shadow-md rounded-lg bg-primary/15 border-2 border-base-300/70 transition-all duration-200 hover:shadow-lg">
+      <Handle type="target" position={Position.Top} className="!bg-accent" />
       <div className="text-center">
-        <div className="font-medium text-base text-base-content leading-tight">{label}</div>
+        <div className="font-medium text-base text-base-content leading-tight">
+          {label}
+        </div>
         {probability !== undefined && (
           <div className="text-sm text-base-content/60 mt-2 tabular-nums">
             {(probability * 100).toFixed(1)}%
           </div>
         )}
       </div>
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        className="w-3 h-3 !bg-base-content/40 !border-2 !border-base-100 transition-colors duration-200 hover:!bg-primary"
-      />
+      <Handle type="source" position={Position.Bottom} className="!bg-accent" />
     </div>
   );
 }
@@ -82,73 +76,112 @@ const nodeTypes = {
   probability: ProbabilityNode,
 };
 
-export function GraphEditor({ modelId, nodes: dbNodes, selectedNode, onNodeSelect, isReadOnly }: GraphEditorProps) {
+export function GraphEditor({
+  modelId,
+  nodes: dbNodes,
+  selectedNode,
+  onNodeSelect,
+  isReadOnly,
+}: GraphEditorProps) {
   return (
     <ReactFlowProvider>
-      <GraphEditorInner modelId={modelId} nodes={dbNodes} selectedNode={selectedNode} onNodeSelect={onNodeSelect} isReadOnly={isReadOnly} />
+      <GraphEditorInner
+        modelId={modelId}
+        nodes={dbNodes}
+        selectedNode={selectedNode}
+        onNodeSelect={onNodeSelect}
+        isReadOnly={isReadOnly}
+      />
     </ReactFlowProvider>
   );
 }
 
-function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect, isReadOnly = false }: GraphEditorProps) {
+function GraphEditorInner({
+  modelId,
+  nodes: dbNodes,
+  selectedNode,
+  onNodeSelect,
+  isReadOnly = false,
+}: GraphEditorProps) {
   const { screenToFlowPosition } = useReactFlow();
   const { showError, showSuccess } = useToast();
 
   const createNode = useMutation(api.nodes.create);
-  const updateNode = useMutation(api.nodes.update).withOptimisticUpdate((localStore, args) => {
-    const currentNodes = localStore.getQuery(api.nodes.listByModel, { modelId });
-    if (currentNodes) {
-      const updatedNodes = currentNodes.map((node) => {
-        if (node._id !== args.id) return node;
-
-        return {
-          ...node,
-          ...(args.title !== undefined && { title: args.title }),
-          ...(args.description !== undefined && { description: args.description }),
-          ...(args.x !== undefined && { x: args.x }),
-          ...(args.y !== undefined && { y: args.y }),
-          ...(args.cptEntries !== undefined && { cptEntries: args.cptEntries }),
-          ...(args.columnOrder !== undefined && { columnOrder: args.columnOrder }),
-        };
+  const updateNode = useMutation(api.nodes.update).withOptimisticUpdate(
+    (localStore, args) => {
+      const currentNodes = localStore.getQuery(api.nodes.listByModel, {
+        modelId,
       });
+      if (currentNodes) {
+        const updatedNodes = currentNodes.map((node) => {
+          if (node._id !== args.id) return node;
 
-      localStore.setQuery(api.nodes.listByModel, { modelId }, updatedNodes);
-    }
-  });
-  const deleteNode = useMutation(api.nodes.remove).withOptimisticUpdate((localStore, args) => {
-    const currentNodes = localStore.getQuery(api.nodes.listByModel, { modelId });
-    if (currentNodes) {
-      const filteredNodes = currentNodes.filter((n) => n._id !== args.id);
+          return {
+            ...node,
+            ...(args.title !== undefined && { title: args.title }),
+            ...(args.description !== undefined && {
+              description: args.description,
+            }),
+            ...(args.x !== undefined && { x: args.x }),
+            ...(args.y !== undefined && { y: args.y }),
+            ...(args.cptEntries !== undefined && {
+              cptEntries: args.cptEntries,
+            }),
+            ...(args.columnOrder !== undefined && {
+              columnOrder: args.columnOrder,
+            }),
+          };
+        });
 
-      const updatedNodes = filteredNodes.map((node) => {
-        const hasDeletedParent = node.cptEntries.some(entry => args.id in entry.parentStates);
-        if (!hasDeletedParent) return node;
-
-        return {
-          ...node,
-          cptEntries: node.cptEntries.map(entry => {
-            const newParentStates = { ...entry.parentStates };
-            delete newParentStates[args.id];
-            return { ...entry, parentStates: newParentStates };
-          }),
-          columnOrder: node.columnOrder?.filter(id => id !== args.id),
-        };
+        localStore.setQuery(api.nodes.listByModel, { modelId }, updatedNodes);
+      }
+    },
+  );
+  const deleteNode = useMutation(api.nodes.remove).withOptimisticUpdate(
+    (localStore, args) => {
+      const currentNodes = localStore.getQuery(api.nodes.listByModel, {
+        modelId,
       });
+      if (currentNodes) {
+        const filteredNodes = currentNodes.filter((n) => n._id !== args.id);
 
-      localStore.setQuery(api.nodes.listByModel, { modelId }, updatedNodes);
-    }
-  });
+        const updatedNodes = filteredNodes.map((node) => {
+          const hasDeletedParent = node.cptEntries.some(
+            (entry) => args.id in entry.parentStates,
+          );
+          if (!hasDeletedParent) return node;
+
+          return {
+            ...node,
+            cptEntries: node.cptEntries.map((entry) => {
+              const newParentStates = { ...entry.parentStates };
+              delete newParentStates[args.id];
+              return { ...entry, parentStates: newParentStates };
+            }),
+            columnOrder: node.columnOrder?.filter((id) => id !== args.id),
+          };
+        });
+
+        localStore.setQuery(api.nodes.listByModel, { modelId }, updatedNodes);
+      }
+    },
+  );
 
   const probabilisticFingerprint = useMemo(() => {
-    return dbNodes.map((node) => {
-      const entriesStr = node.cptEntries.map((entry) => {
-        const parentsStr = Object.keys(entry.parentStates).sort()
-          .map(pid => `${pid}:${entry.parentStates[pid]}`)
-          .join(',');
-        return `${parentsStr}|${entry.probability}`;
-      }).join(';');
-      return `${node._id}:${entriesStr}`;
-    }).join('|');
+    return dbNodes
+      .map((node) => {
+        const entriesStr = node.cptEntries
+          .map((entry) => {
+            const parentsStr = Object.keys(entry.parentStates)
+              .sort()
+              .map((pid) => `${pid}:${entry.parentStates[pid]}`)
+              .join(",");
+            return `${parentsStr}|${entry.probability}`;
+          })
+          .join(";");
+        return `${node._id}:${entriesStr}`;
+      })
+      .join("|");
   }, [dbNodes]);
 
   const probabilities = useMemo(() => {
@@ -170,7 +203,7 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect,
   const initialEdges: FlowEdge[] = dbNodes.flatMap((node) => {
     const allParentIds = new Set<string>();
     for (const entry of node.cptEntries) {
-      Object.keys(entry.parentStates).forEach(id => allParentIds.add(id));
+      Object.keys(entry.parentStates).forEach((id) => allParentIds.add(id));
     }
     return Array.from(allParentIds).map((parentId) => ({
       id: `${parentId}-${node._id}`,
@@ -185,11 +218,13 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect,
 
   useEffect(() => {
     setNodes((currentNodes) => {
-      const dbNodeIds = new Set(dbNodes.map(n => n._id));
-      const currentNodeIds = new Set(currentNodes.map(n => n.id));
+      const dbNodeIds = new Set(dbNodes.map((n) => n._id));
+      const currentNodeIds = new Set(currentNodes.map((n) => n.id));
 
       // Remove nodes that no longer exist in DB
-      let updatedNodes = currentNodes.filter(n => dbNodeIds.has(n.id as Id<"nodes">));
+      let updatedNodes = currentNodes.filter((n) =>
+        dbNodeIds.has(n.id as Id<"nodes">),
+      );
 
       // Add new nodes from DB
       for (const dbNode of dbNodes) {
@@ -208,13 +243,22 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect,
       }
 
       // Update node labels, probabilities, and selection state (but not positions)
-      updatedNodes = updatedNodes.map(node => {
-        const dbNode = dbNodes.find(n => n._id === node.id);
+      updatedNodes = updatedNodes.map((node) => {
+        const dbNode = dbNodes.find((n) => n._id === node.id);
         const nodeId = node.id as Id<"nodes">;
         const probability = probabilities.get(nodeId);
         const isSelected = nodeId === selectedNode;
-        if (dbNode && (dbNode.title !== node.data.label || probability !== node.data.probability || node.selected !== isSelected)) {
-          return { ...node, data: { label: dbNode.title, probability }, selected: isSelected };
+        if (
+          dbNode &&
+          (dbNode.title !== node.data.label ||
+            probability !== node.data.probability ||
+            node.selected !== isSelected)
+        ) {
+          return {
+            ...node,
+            data: { label: dbNode.title, probability },
+            selected: isSelected,
+          };
         }
         return node;
       });
@@ -225,7 +269,7 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect,
     const newEdges: FlowEdge[] = dbNodes.flatMap((node) => {
       const allParentIds = new Set<string>();
       for (const entry of node.cptEntries) {
-        Object.keys(entry.parentStates).forEach(id => allParentIds.add(id));
+        Object.keys(entry.parentStates).forEach((id) => allParentIds.add(id));
       }
       return Array.from(allParentIds).map((parentId) => ({
         id: `${parentId}-${node._id}`,
@@ -248,13 +292,15 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect,
             childNode.cptEntries.some((entry) => {
               const parentState = entry.parentStates[nodeId];
               return parentState !== undefined && parentState !== null;
-            })
+            }),
           );
 
           if (childrenWithDependency.length > 0) {
-            const childTitles = childrenWithDependency.map((n) => n.title).join(", ");
+            const childTitles = childrenWithDependency
+              .map((n) => n.title)
+              .join(", ");
             showError(
-              `Cannot delete: ${childTitles} ${childrenWithDependency.length > 1 ? "have" : "has"} specific probabilities for this node. Set to "any" first.`
+              `Cannot delete: ${childTitles} ${childrenWithDependency.length > 1 ? "have" : "has"} specific probabilities for this node. Set to "any" first.`,
             );
             return;
           }
@@ -276,7 +322,7 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect,
         onNodesChange(nonRemoveChanges);
       }
     },
-    [onNodesChange, deleteNode, showSuccess, showError, dbNodes]
+    [onNodesChange, deleteNode, showSuccess, showError, dbNodes],
   );
 
   const handleNodeDragStop = useCallback(
@@ -287,7 +333,7 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect,
         y: node.position.y,
       });
     },
-    [updateNode]
+    [updateNode],
   );
 
   const handleEdgesChange = useCallback(
@@ -301,12 +347,12 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect,
 
           if (childNode) {
             const canRemove = childNode.cptEntries.every(
-              (entry) => entry.parentStates[parentId] === null
+              (entry) => entry.parentStates[parentId] === null,
             );
 
             if (!canRemove) {
               showError(
-                `Cannot remove edge: "${childNode.title}" has specific probabilities for this parent. Set all to "any" first.`
+                `Cannot remove edge: "${childNode.title}" has specific probabilities for this parent. Set all to "any" first.`,
               );
               return;
             }
@@ -320,7 +366,7 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect,
               };
             });
             const newColumnOrder = childNode.columnOrder?.filter(
-              (id) => id !== parentId
+              (id) => id !== parentId,
             );
 
             void (async () => {
@@ -345,7 +391,7 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect,
         onEdgesChange(nonRemovalChanges);
       }
     },
-    [onEdgesChange, dbNodes, updateNode, showSuccess, showError]
+    [onEdgesChange, dbNodes, updateNode, showSuccess, showError],
   );
 
   const handleConnect = useCallback(
@@ -356,8 +402,8 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect,
         const sourceId = connection.source;
         const childNode = dbNodes.find((n) => n._id === connection.target);
         if (childNode) {
-          const alreadyHasParent = childNode.cptEntries.some((entry) =>
-            sourceId in entry.parentStates
+          const alreadyHasParent = childNode.cptEntries.some(
+            (entry) => sourceId in entry.parentStates,
           );
 
           if (alreadyHasParent) {
@@ -378,37 +424,43 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect,
         }
       }
     },
-    [setEdges, dbNodes, updateNode]
+    [setEdges, dbNodes, updateNode],
   );
 
-  const handlePaneClick = useCallback((event: React.MouseEvent) => {
-    if (event.detail === 2 && !isReadOnly) {
-      const position = screenToFlowPosition({
-        x: event.clientX,
-        y: event.clientY,
-      });
-
-      void (async () => {
-        const newNodeId = await createNode({
-          modelId,
-          title: "New Node",
-          x: position.x,
-          y: position.y,
+  const handlePaneClick = useCallback(
+    (event: React.MouseEvent) => {
+      if (event.detail === 2 && !isReadOnly) {
+        const position = screenToFlowPosition({
+          x: event.clientX,
+          y: event.clientY,
         });
-        onNodeSelect(newNodeId);
-      })();
-    } else if (event.detail === 1) {
-      // Single click on pane - deselect node and close sidebar
-      onNodeSelect(null);
-    }
-  }, [modelId, createNode, screenToFlowPosition, onNodeSelect, isReadOnly]);
 
-  const onNodeClick = useCallback((_event: React.MouseEvent, node: FlowNode) => {
-    onNodeSelect(node.id as Id<"nodes">);
-  }, [onNodeSelect]);
+        void (async () => {
+          const newNodeId = await createNode({
+            modelId,
+            title: "New Node",
+            x: position.x,
+            y: position.y,
+          });
+          onNodeSelect(newNodeId);
+        })();
+      } else if (event.detail === 1) {
+        // Single click on pane - deselect node and close sidebar
+        onNodeSelect(null);
+      }
+    },
+    [modelId, createNode, screenToFlowPosition, onNodeSelect, isReadOnly],
+  );
+
+  const onNodeClick = useCallback(
+    (_event: React.MouseEvent, node: FlowNode) => {
+      onNodeSelect(node.id as Id<"nodes">);
+    },
+    [onNodeSelect],
+  );
 
   return (
-    <div className="w-full h-[calc(100vh-16rem)] bg-base-200 rounded-lg overflow-hidden shadow-md">
+    <div className="w-full h-full bg-base-200 rounded-lg shadow-md">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -430,11 +482,17 @@ function GraphEditorInner({ modelId, nodes: dbNodes, selectedNode, onNodeSelect,
         <Controls />
         <MiniMap />
         {isReadOnly ? (
-          <Panel position="top-left" className="bg-warning/10 border border-warning/50 px-3 py-2 rounded-lg shadow-sm text-sm text-warning">
+          <Panel
+            position="top-left"
+            className="bg-warning/10 border border-warning/50 px-3 py-2 rounded-lg shadow-sm text-sm text-warning"
+          >
             Read-only mode
           </Panel>
         ) : (
-          <Panel position="top-left" className="bg-base-100/90 backdrop-blur-sm border border-base-300/50 px-3 py-2 rounded-lg shadow-sm text-sm">
+          <Panel
+            position="top-left"
+            className="bg-base-100/90 backdrop-blur-sm border border-base-300/50 px-3 py-2 rounded-lg shadow-sm text-sm"
+          >
             Double-click canvas to create node
           </Panel>
         )}
@@ -472,7 +530,9 @@ export function NodeInspector({
   const [title, setTitle] = useState(node.title);
   const [description, setDescription] = useState(node.description ?? "");
   const [cptEntries, setCptEntries] = useState(node.cptEntries);
-  const [columnOrder, setColumnOrder] = useState<Id<"nodes">[] | undefined>(node.columnOrder);
+  const [columnOrder, setColumnOrder] = useState<Id<"nodes">[] | undefined>(
+    node.columnOrder,
+  );
   const [hasChanges, setHasChanges] = useState(false);
   const [hasCptValidationError, setHasCptValidationError] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -499,24 +559,26 @@ export function NodeInspector({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         onClose();
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
   const checkForChanges = (
     newTitle: string,
     newDescription: string,
     newCptEntries: typeof node.cptEntries,
-    newColumnOrder: typeof node.columnOrder
+    newColumnOrder: typeof node.columnOrder,
   ) => {
     const titleChanged = newTitle.trim() !== node.title;
     const descChanged = newDescription.trim() !== (node.description ?? "");
-    const cptChanged = JSON.stringify(newCptEntries) !== JSON.stringify(node.cptEntries);
-    const columnOrderChanged = JSON.stringify(newColumnOrder) !== JSON.stringify(node.columnOrder);
+    const cptChanged =
+      JSON.stringify(newCptEntries) !== JSON.stringify(node.cptEntries);
+    const columnOrderChanged =
+      JSON.stringify(newColumnOrder) !== JSON.stringify(node.columnOrder);
     return titleChanged || descChanged || cptChanged || columnOrderChanged;
   };
 
@@ -551,15 +613,18 @@ export function NodeInspector({
     setHasChanges(checkForChanges(title, value, cptEntries, columnOrder));
   };
 
-  const handleCptChange = (entries: typeof node.cptEntries, newColumnOrder: Id<"nodes">[]) => {
+  const handleCptChange = (
+    entries: typeof node.cptEntries,
+    newColumnOrder: Id<"nodes">[],
+  ) => {
     setCptEntries(entries);
     setColumnOrder(newColumnOrder);
     setHasChanges(checkForChanges(title, description, entries, newColumnOrder));
   };
 
   return (
-    <div className="w-full h-full flex flex-col px-1">
-      <div className="flex justify-between items-center mb-4">
+    <div className="w-full h-full flex flex-col">
+      <div className="flex justify-between items-center mb-2 px-3">
         <div role="tablist" className="tabs tabs-lift flex-1">
           <button
             role="tab"
@@ -585,99 +650,114 @@ export function NodeInspector({
         </button>
       </div>
 
-      {activeTab === "edit" ? (
-        <form className="space-y-3 flex-1 overflow-y-auto px-1" onSubmit={(e) => {
-          e.preventDefault();
-          handleSave();
-        }}>
-        {isReadOnly ? (
-          <>
-            <h3 className="text-xl font-semibold">{title}</h3>
+      <div className="overflow-y-auto px-3">
+        {activeTab === "edit" ? (
+          <form
+            className="space-y-3 flex-1 px-1"
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSave();
+            }}
+          >
+            {isReadOnly ? (
+              <>
+                <h3 className="text-xl font-semibold">{title}</h3>
 
-            {description ? (
-              <p className="opacity-90 whitespace-pre-wrap">{description}</p>
+                {description ? (
+                  <p className="opacity-90 whitespace-pre-wrap">
+                    {description}
+                  </p>
+                ) : (
+                  <p className="opacity-50 italic">No description</p>
+                )}
+              </>
             ) : (
-              <p className="opacity-50 italic">No description</p>
+              <>
+                <div>
+                  <label htmlFor="node-title" className="label">
+                    <span className="label-text">Title</span>
+                  </label>
+                  <input
+                    id="node-title"
+                    ref={titleInputRef}
+                    type="text"
+                    className="input w-full"
+                    value={title}
+                    onChange={(e) => handleTitleChange(e.target.value)}
+                    aria-required="true"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="node-description" className="label">
+                    <span className="label-text">Description</span>
+                  </label>
+                  <textarea
+                    id="node-description"
+                    className="textarea w-full"
+                    rows={3}
+                    value={description}
+                    onChange={(e) => handleDescriptionChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSave();
+                      } else if (e.key === "Escape") {
+                        e.stopPropagation();
+                      }
+                    }}
+                  />
+                </div>
+              </>
             )}
-          </>
-        ) : (
-          <>
-            <div>
-              <label htmlFor="node-title" className="label">
-                <span className="label-text">Title</span>
-              </label>
-              <input
-                id="node-title"
-                ref={titleInputRef}
-                type="text"
-                className="input w-full"
-                value={title}
-                onChange={(e) => handleTitleChange(e.target.value)}
-                aria-required="true"
-              />
-            </div>
 
-            <div>
-              <label htmlFor="node-description" className="label">
-                <span className="label-text">Description</span>
-              </label>
-              <textarea
-                id="node-description"
-                className="textarea w-full"
-                rows={3}
-                value={description}
-                onChange={(e) => handleDescriptionChange(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSave();
-                  } else if (e.key === 'Escape') {
-                    e.stopPropagation();
+            <CPTEditor
+              cptEntries={cptEntries}
+              parentNodes={parentNodes}
+              columnOrder={columnOrder}
+              onChange={handleCptChange}
+              onValidationChange={(isValid) =>
+                setHasCptValidationError(!isValid)
+              }
+              isReadOnly={isReadOnly}
+            />
+
+            {!isReadOnly && (
+              <div className="flex gap-2 mb-4">
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-sm flex-1"
+                  disabled={
+                    !hasChanges || !title.trim() || hasCptValidationError
                   }
-                }}
-              />
-            </div>
-          </>
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm flex-1"
+                  onClick={handleCancel}
+                  disabled={!hasChanges}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-error btn-sm flex-1"
+                  onClick={onDelete}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </button>
+              </div>
+            )}
+          </form>
+        ) : (
+          <div className="flex-1 px-1">
+            <SensitivityPanel nodes={allNodes} targetNodeId={node._id} />
+          </div>
         )}
-
-        <CPTEditor
-          cptEntries={cptEntries}
-          parentNodes={parentNodes}
-          columnOrder={columnOrder}
-          onChange={handleCptChange}
-          onValidationChange={(isValid) => setHasCptValidationError(!isValid)}
-          isReadOnly={isReadOnly}
-        />
-
-          {!isReadOnly && (
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                className="btn btn-primary btn-sm flex-1"
-                disabled={!hasChanges || !title.trim() || hasCptValidationError}
-              >
-                Save
-              </button>
-              <button
-                type="button"
-                className="btn btn-outline btn-sm flex-1"
-                onClick={handleCancel}
-                disabled={!hasChanges}
-              >
-                Cancel
-              </button>
-              <button type="button" className="btn btn-error btn-sm flex-1" onClick={onDelete}>
-                <Trash2 className="w-4 h-4" />
-                Delete
-              </button>
-            </div>
-          )}
-        </form>
-      ) : (
-        <div className="flex-1 overflow-y-auto px-1">
-          <SensitivityPanel nodes={allNodes} targetNodeId={node._id} />
-        </div>
-      )}
+      </div>
     </div>
   );
 }

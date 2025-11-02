@@ -16,7 +16,9 @@ export function expandEntry(entry: CPTEntry, parentIds: string[]): string[] {
   }
 
   if (nullIndices.length > 8) {
-    throw new Error("Too many 'any' values. Maximum 8 per rule to prevent exponential explosion.");
+    throw new Error(
+      "Too many 'any' values. Maximum 8 per rule to prevent exponential explosion.",
+    );
   }
 
   const numExpansions = Math.pow(2, nullIndices.length);
@@ -27,14 +29,16 @@ export function expandEntry(entry: CPTEntry, parentIds: string[]): string[] {
     for (let j = 0; j < nullIndices.length; j++) {
       values[nullIndices[j]] = Boolean((i >> j) & 1);
     }
-    const key = values.map(v => v ? 'T' : 'F').join('');
+    const key = values.map((v) => (v ? "T" : "F")).join("");
     combinations.push(key);
   }
 
   return combinations;
 }
 
-export function validateCPTEntries(entries: CPTEntry[]): { valid: true } | { valid: false; error: string } {
+export function validateCPTEntries(
+  entries: CPTEntry[],
+): { valid: true } | { valid: false; error: string } {
   if (entries.length === 0) {
     return { valid: false, error: "CPT entries cannot be empty" };
   }
@@ -42,13 +46,26 @@ export function validateCPTEntries(entries: CPTEntry[]): { valid: true } | { val
   const parentIds = Object.keys(entries[0]?.parentStates || {});
 
   for (const entry of entries) {
-    if (isNaN(entry.probability) || entry.probability < 0 || entry.probability > 1) {
-      return { valid: false, error: `Invalid probability value: ${entry.probability}. Must be between 0 and 1.` };
+    if (
+      isNaN(entry.probability) ||
+      entry.probability < 0 ||
+      entry.probability > 1
+    ) {
+      return {
+        valid: false,
+        error: `Invalid probability value: ${entry.probability}. Must be between 0 and 1.`,
+      };
     }
 
     const entryParentIds = Object.keys(entry.parentStates);
-    if (entryParentIds.length !== parentIds.length || !entryParentIds.every(id => parentIds.includes(id))) {
-      return { valid: false, error: "All CPT entries must have the same parent nodes" };
+    if (
+      entryParentIds.length !== parentIds.length ||
+      !entryParentIds.every((id) => parentIds.includes(id))
+    ) {
+      return {
+        valid: false,
+        error: "All CPT entries must have the same parent nodes",
+      };
     }
   }
 
@@ -74,7 +91,9 @@ export function validateCPTEntries(entries: CPTEntry[]): { valid: true } | { val
   const multiCovered: string[] = [];
 
   for (let i = 0; i < numCombinations; i++) {
-    const key = parentIds.map((_, idx) => ((i >> idx) & 1) ? 'T' : 'F').join('');
+    const key = parentIds
+      .map((_, idx) => ((i >> idx) & 1 ? "T" : "F"))
+      .join("");
     const count = coverageCount.get(key) || 0;
 
     if (count === 0) {
@@ -87,14 +106,14 @@ export function validateCPTEntries(entries: CPTEntry[]): { valid: true } | { val
   if (uncovered.length > 0) {
     return {
       valid: false,
-      error: `CPT is incomplete: ${uncovered.length} of ${numCombinations} combinations not covered. Missing: ${uncovered.slice(0, 3).join(', ')}${uncovered.length > 3 ? '...' : ''}`
+      error: `CPT is incomplete: ${uncovered.length} of ${numCombinations} combinations not covered. Missing: ${uncovered.slice(0, 3).join(", ")}${uncovered.length > 3 ? "..." : ""}`,
     };
   }
 
   if (multiCovered.length > 0) {
     return {
       valid: false,
-      error: `CPT has conflicts: ${multiCovered.length} combinations covered by multiple rules. Conflicting: ${multiCovered.slice(0, 3).join(', ')}${multiCovered.length > 3 ? '...' : ''}`
+      error: `CPT has conflicts: ${multiCovered.length} combinations covered by multiple rules. Conflicting: ${multiCovered.slice(0, 3).join(", ")}${multiCovered.length > 3 ? "..." : ""}`,
     };
   }
 

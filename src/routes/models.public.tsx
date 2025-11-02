@@ -11,7 +11,7 @@ function PublicModelsPage() {
   const { results, status, loadMore } = usePaginatedQuery(
     api.models.listPublic,
     {},
-    { initialNumItems: 12 }
+    { initialNumItems: 12 },
   );
 
   return (
@@ -55,10 +55,7 @@ function PublicModelsPage() {
 
           {status === "CanLoadMore" && (
             <div className="not-prose flex justify-center mt-8">
-              <button
-                onClick={() => loadMore(12)}
-                className="btn btn-primary"
-              >
+              <button onClick={() => loadMore(12)} className="btn btn-primary">
                 Load More
               </button>
             </div>

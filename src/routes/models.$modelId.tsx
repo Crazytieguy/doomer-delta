@@ -2,7 +2,7 @@ import { convexQuery } from "@convex-dev/react-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
-import { Copy, Globe, GlobeLock, GitFork } from "lucide-react";
+import { Copy, GitFork, Globe, GlobeLock } from "lucide-react";
 import { useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { api } from "../../convex/_generated/api";
@@ -43,7 +43,9 @@ function ModelDetailPage() {
 
   const [selectedNode, setSelectedNode] = useState<Id<"nodes"> | null>(null);
   const [modelName, setModelName] = useState(model?.name ?? "");
-  const [modelDescription, setModelDescription] = useState(model?.description ?? "");
+  const [modelDescription, setModelDescription] = useState(
+    model?.description ?? "",
+  );
   const [hasModelChanges, setHasModelChanges] = useState(false);
 
   const isOwner = model?.isOwner ?? false;
@@ -55,15 +57,23 @@ function ModelDetailPage() {
   const cloneModel = useMutation(api.models.clone);
   const updateModel = useMutation(api.models.update).withOptimisticUpdate(
     (localStore, args) => {
-      const currentModel = localStore.getQuery(api.models.get, { id: modelId as Id<"models"> });
+      const currentModel = localStore.getQuery(api.models.get, {
+        id: modelId as Id<"models">,
+      });
       if (currentModel) {
-        localStore.setQuery(api.models.get, { id: modelId as Id<"models"> }, {
-          ...currentModel,
-          ...(args.name !== undefined && { name: args.name }),
-          ...(args.description !== undefined && { description: args.description }),
-        });
+        localStore.setQuery(
+          api.models.get,
+          { id: modelId as Id<"models"> },
+          {
+            ...currentModel,
+            ...(args.name !== undefined && { name: args.name }),
+            ...(args.description !== undefined && {
+              description: args.description,
+            }),
+          },
+        );
       }
-    }
+    },
   );
 
   const handleSaveModel = async () => {
@@ -71,7 +81,10 @@ function ModelDetailPage() {
     const trimmedName = modelName.trim();
     const trimmedDesc = modelDescription.trim();
 
-    if (trimmedName && (trimmedName !== model.name || trimmedDesc !== (model.description || ""))) {
+    if (
+      trimmedName &&
+      (trimmedName !== model.name || trimmedDesc !== (model.description || ""))
+    ) {
       try {
         await updateModel({
           id: modelId as Id<"models">,
@@ -96,20 +109,28 @@ function ModelDetailPage() {
   const handleModelNameChange = (value: string) => {
     if (!model) return;
     setModelName(value);
-    setHasModelChanges(value.trim() !== model.name || modelDescription.trim() !== (model.description || ""));
+    setHasModelChanges(
+      value.trim() !== model.name ||
+        modelDescription.trim() !== (model.description || ""),
+    );
   };
 
   const handleModelDescriptionChange = (value: string) => {
     if (!model) return;
     setModelDescription(value);
-    setHasModelChanges(modelName.trim() !== model.name || value.trim() !== (model.description || ""));
+    setHasModelChanges(
+      modelName.trim() !== model.name ||
+        value.trim() !== (model.description || ""),
+    );
   };
 
   const handleTogglePublic = async () => {
     if (!model) return;
     try {
       await togglePublic({ id: modelId as Id<"models"> });
-      showSuccess(model.isPublic ? "Model is now private" : "Model is now public");
+      showSuccess(
+        model.isPublic ? "Model is now private" : "Model is now public",
+      );
     } catch (error) {
       showError(error);
     }
@@ -120,7 +141,10 @@ function ModelDetailPage() {
     try {
       const newModelId = await cloneModel({ id: modelId as Id<"models"> });
       showSuccess("Model cloned successfully");
-      void navigate({ to: "/models/$modelId", params: { modelId: newModelId } });
+      void navigate({
+        to: "/models/$modelId",
+        params: { modelId: newModelId },
+      });
     } catch (error) {
       showError(error);
     }
@@ -147,7 +171,7 @@ function ModelDetailPage() {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-[calc(100vh-10rem)]">
       <div className="relative z-10">
         {isReadOnly ? (
           <>
@@ -156,10 +180,14 @@ function ModelDetailPage() {
               <div className="not-prose flex gap-2 shrink-0">
                 {isOwner && (
                   <button
-                    className="btn btn-sm btn-outline"
+                    className="btn btn-sm btn-accent"
                     onClick={() => void handleTogglePublic()}
                   >
-                    {model.isPublic ? <GlobeLock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
+                    {model.isPublic ? (
+                      <GlobeLock className="w-4 h-4" />
+                    ) : (
+                      <Globe className="w-4 h-4" />
+                    )}
                     {model.isPublic ? "Make Private" : "Make Public"}
                   </button>
                 )}
@@ -171,7 +199,7 @@ function ModelDetailPage() {
                   Copy Link
                 </button>
                 <button
-                  className="btn btn-sm btn-outline"
+                  className="btn btn-sm btn-secondary"
                   onClick={() => void handleClone()}
                 >
                   <GitFork className="w-4 h-4" />
@@ -180,16 +208,20 @@ function ModelDetailPage() {
               </div>
             </div>
             {modelDescription ? (
-              <p className="opacity-70 whitespace-pre-wrap mt-0">{modelDescription}</p>
+              <p className="opacity-70 whitespace-pre-wrap mt-0">
+                {modelDescription}
+              </p>
             ) : (
               <p className="opacity-50 italic mt-0">No description</p>
             )}
           </>
         ) : (
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            void handleSaveModel();
-          }}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleSaveModel();
+            }}
+          >
             <div className="flex gap-4 items-start justify-between mb-2">
               <input
                 type="text"
@@ -200,10 +232,14 @@ function ModelDetailPage() {
               <div className="not-prose flex gap-2 shrink-0">
                 {isOwner && (
                   <button
-                    className="btn btn-sm btn-outline"
+                    className="btn btn-sm btn-accent"
                     onClick={() => void handleTogglePublic()}
                   >
-                    {model.isPublic ? <GlobeLock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
+                    {model.isPublic ? (
+                      <GlobeLock className="w-4 h-4" />
+                    ) : (
+                      <Globe className="w-4 h-4" />
+                    )}
                     {model.isPublic ? "Make Private" : "Make Public"}
                   </button>
                 )}
@@ -215,7 +251,7 @@ function ModelDetailPage() {
                   Copy Link
                 </button>
                 <button
-                  className="btn btn-sm btn-outline"
+                  className="btn btn-sm btn-secondary"
                   onClick={() => void handleClone()}
                 >
                   <GitFork className="w-4 h-4" />
@@ -223,7 +259,10 @@ function ModelDetailPage() {
                 </button>
               </div>
             </div>
-            <div className="grid mb-4 after:invisible after:whitespace-pre-wrap after:content-[attr(data-value)] after:[grid-area:1/1] after:text-sm after:border after:border-solid after:border-[#0000] after:[line-height:1.5] after:py-1" data-value={modelDescription || " "}>
+            <div
+              className="grid mb-4 after:invisible after:whitespace-pre-wrap after:content-[attr(data-value)] after:[grid-area:1/1] after:text-sm after:border after:border-solid after:border-[#0000] after:[line-height:1.5] after:py-1"
+              data-value={modelDescription || " "}
+            >
               <textarea
                 className="textarea textarea-ghost w-full px-0 py-1 opacity-70 resize-none overflow-hidden [grid-area:1/1] [min-height:auto]"
                 style={{ lineHeight: 1.5 }}
@@ -232,7 +271,7 @@ function ModelDetailPage() {
                 value={modelDescription}
                 onChange={(e) => handleModelDescriptionChange(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
+                  if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
                     void handleSaveModel();
                   }
@@ -241,10 +280,18 @@ function ModelDetailPage() {
             </div>
             {hasModelChanges && (
               <div className="flex gap-2 mt-2 mb-4">
-                <button type="submit" className="btn btn-primary btn-sm" disabled={!modelName.trim()}>
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-sm"
+                  disabled={!modelName.trim()}
+                >
                   Save
                 </button>
-                <button type="button" className="btn btn-outline btn-sm" onClick={handleCancelModel}>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  onClick={handleCancelModel}
+                >
                   Cancel
                 </button>
               </div>
@@ -253,9 +300,13 @@ function ModelDetailPage() {
         )}
       </div>
 
-      <div className="not-prose flex flex-1 overflow-hidden">
+      <div className="not-prose flex flex-1 overflow-hidden shadow-[4px_4px_12px_rgba(0,0,0,0.15)]">
         {/* Desktop layout with resizable panels */}
-        <PanelGroup autoSaveId="model-editor-layout" direction="horizontal" className="hidden sm:flex w-full">
+        <PanelGroup
+          autoSaveId="model-editor-layout"
+          direction="horizontal"
+          className="hidden sm:flex w-full h-full"
+        >
           <Panel id="graph" order={1}>
             <GraphEditor
               modelId={modelId as Id<"models">}
@@ -268,38 +319,42 @@ function ModelDetailPage() {
 
           {selectedNodeData && (
             <>
-              <PanelResizeHandle className="w-1 bg-base-300 hover:bg-primary transition-colors" />
-              <Panel id="inspector" order={2} defaultSize={30} minSize={25}>
-                <div className="h-full bg-base-100 px-6 overflow-y-auto">
-                  <NodeInspector
-                    key={selectedNode}
-                    node={selectedNodeData}
-                    allNodes={nodes}
-                    onClose={handleCloseSidebar}
-                    onUpdate={(updates) => {
-                      void (async () => {
-                        try {
-                          await updateNode({ id: selectedNode!, ...updates });
-                          showSuccess("Node updated successfully");
-                        } catch (error) {
-                          showError(error);
-                        }
-                      })();
-                    }}
-                    onDelete={() => {
-                      void (async () => {
-                        try {
-                          await deleteNode({ id: selectedNode! });
-                          handleCloseSidebar();
-                          showSuccess("Node deleted successfully");
-                        } catch (error) {
-                          showError(error);
-                        }
-                      })();
-                    }}
-                    isReadOnly={isReadOnly}
-                  />
-                </div>
+              <PanelResizeHandle className="w-1 bg-accent/35 hover:bg-secondary transition-colors" />
+              <Panel
+                id="inspector"
+                order={2}
+                defaultSize={30}
+                minSize={20}
+                className="min-w-78"
+              >
+                <NodeInspector
+                  key={selectedNode}
+                  node={selectedNodeData}
+                  allNodes={nodes}
+                  onClose={handleCloseSidebar}
+                  onUpdate={(updates) => {
+                    void (async () => {
+                      try {
+                        await updateNode({ id: selectedNode!, ...updates });
+                        showSuccess("Node updated successfully");
+                      } catch (error) {
+                        showError(error);
+                      }
+                    })();
+                  }}
+                  onDelete={() => {
+                    void (async () => {
+                      try {
+                        await deleteNode({ id: selectedNode! });
+                        handleCloseSidebar();
+                        showSuccess("Node deleted successfully");
+                      } catch (error) {
+                        showError(error);
+                      }
+                    })();
+                  }}
+                  isReadOnly={isReadOnly}
+                />
               </Panel>
             </>
           )}
@@ -323,7 +378,7 @@ function ModelDetailPage() {
               onClick={handleCloseSidebar}
               onTouchMove={(e) => e.preventDefault()}
             />
-            <div className="fixed inset-y-0 right-0 w-[85vw] max-w-sm h-full bg-base-100 p-6 rounded-lg overflow-y-auto border border-base-300 z-30 sm:hidden">
+            <div className="fixed inset-y-0 right-0 w-[85vw] max-w-sm h-full bg-base-100 p-6 rounded-lg border border-base-300 z-30 sm:hidden">
               <NodeInspector
                 key={selectedNode}
                 node={selectedNodeData}

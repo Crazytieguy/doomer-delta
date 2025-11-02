@@ -15,28 +15,36 @@ test.describe("Full Stack", () => {
 
   test.beforeAll(async () => {
     convex = new ConvexTestingHelper({
-      backendUrl: process.env.VITE_CONVEX_URL!
+      backendUrl: process.env.VITE_CONVEX_URL!,
     });
   });
 
   test.afterAll(async () => {
-    await convex.mutation(api.testingFunctions.deleteTestUser, { name: testUserName });
+    await convex.mutation(api.testingFunctions.deleteTestUser, {
+      name: testUserName,
+    });
     await convex.close();
   });
 
   test("authentication and data flow", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Sign in", exact: true }),
+    ).toBeVisible();
 
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
 
     await page.getByRole("textbox", { name: "Email address" }).fill(testEmail);
     await page.getByRole("button", { name: "Continue" }).click();
 
-    await page.getByRole("textbox", { name: "Enter verification code" }).pressSequentially("424242");
+    await page
+      .getByRole("textbox", { name: "Enter verification code" })
+      .pressSequentially("424242");
 
-    await page.waitForSelector('button[aria-label="Open user menu"]', { timeout: 10000 });
+    await page.waitForSelector('button[aria-label="Open user menu"]', {
+      timeout: 10000,
+    });
 
     await page.getByRole("button", { name: "Open user menu" }).click();
     await page.getByRole("menuitem", { name: "Sign out" }).click();

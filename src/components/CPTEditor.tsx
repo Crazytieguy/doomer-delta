@@ -1,4 +1,10 @@
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpDown } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  ArrowUpDown,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { CPTEntry } from "../../convex/shared/cptValidation";
@@ -12,23 +18,38 @@ interface CPTEditorProps {
   isReadOnly?: boolean;
 }
 
-export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnOrder, onChange, isReadOnly }: CPTEditorProps) {
+export function CPTEditor({
+  cptEntries,
+  parentNodes,
+  columnOrder: initialColumnOrder,
+  onChange,
+  isReadOnly,
+}: CPTEditorProps) {
   const [localEntries, setLocalEntries] = useState(cptEntries);
   const [isReorderingMode, setIsReorderingMode] = useState(false);
   const [columnOrder, setColumnOrder] = useState<Id<"nodes">[]>([]);
 
   useEffect(() => {
     setLocalEntries(cptEntries);
-    const savedOrder = initialColumnOrder || Object.keys(cptEntries[0]?.parentStates || {}) as Id<"nodes">[];
+    const savedOrder =
+      initialColumnOrder ||
+      (Object.keys(cptEntries[0]?.parentStates || {}) as Id<"nodes">[]);
     if (savedOrder.length > 0) {
       setColumnOrder(savedOrder);
     }
   }, [cptEntries, initialColumnOrder]);
 
-  const parentIds = columnOrder.length > 0 ? columnOrder : Object.keys(localEntries[0]?.parentStates || {}) as Id<"nodes">[];
+  const parentIds =
+    columnOrder.length > 0
+      ? columnOrder
+      : (Object.keys(localEntries[0]?.parentStates || {}) as Id<"nodes">[]);
 
   // Helper: Find complement row (same parentStates except specified parent is opposite)
-  const findComplementRow = (entries: CPTEntry[], entryIndex: number, parentId: string): number | null => {
+  const findComplementRow = (
+    entries: CPTEntry[],
+    entryIndex: number,
+    parentId: string,
+  ): number | null => {
     const targetEntry = entries[entryIndex];
     const targetValue = targetEntry.parentStates[parentId];
 
@@ -64,7 +85,11 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
   };
 
   // Helper: Create complement entry
-  const createComplement = (entry: CPTEntry, parentId: string, currentValue: boolean): CPTEntry => {
+  const createComplement = (
+    entry: CPTEntry,
+    parentId: string,
+    currentValue: boolean,
+  ): CPTEntry => {
     return {
       parentStates: {
         ...entry.parentStates,
@@ -74,7 +99,11 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
     };
   };
 
-  const handleParentStateChange = (entryIndex: number, parentId: string, value: boolean | null) => {
+  const handleParentStateChange = (
+    entryIndex: number,
+    parentId: string,
+    value: boolean | null,
+  ) => {
     const newEntries = [...localEntries];
     const currentEntry = newEntries[entryIndex];
     const oldValue = currentEntry.parentStates[parentId];
@@ -94,7 +123,11 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
 
       // Create complement if it doesn't exist
       if (complementRow === null) {
-        const complement = createComplement(newEntries[entryIndex], parentId, value);
+        const complement = createComplement(
+          newEntries[entryIndex],
+          parentId,
+          value,
+        );
         newEntries.splice(entryIndex + 1, 0, complement);
       }
     }
@@ -176,7 +209,10 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
   const handleMoveRowUp = (index: number) => {
     if (index === 0) return;
     const newEntries = [...localEntries];
-    [newEntries[index - 1], newEntries[index]] = [newEntries[index], newEntries[index - 1]];
+    [newEntries[index - 1], newEntries[index]] = [
+      newEntries[index],
+      newEntries[index - 1],
+    ];
     setLocalEntries(newEntries);
     onChange(newEntries, parentIds);
   };
@@ -184,12 +220,18 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
   const handleMoveRowDown = (index: number) => {
     if (index === localEntries.length - 1) return;
     const newEntries = [...localEntries];
-    [newEntries[index], newEntries[index + 1]] = [newEntries[index + 1], newEntries[index]];
+    [newEntries[index], newEntries[index + 1]] = [
+      newEntries[index + 1],
+      newEntries[index],
+    ];
     setLocalEntries(newEntries);
     onChange(newEntries, parentIds);
   };
 
-  const reconstructEntriesWithColumnOrder = (entries: CPTEntry[], newOrder: Id<"nodes">[]) => {
+  const reconstructEntriesWithColumnOrder = (
+    entries: CPTEntry[],
+    newOrder: Id<"nodes">[],
+  ) => {
     return entries.map((entry) => {
       const newParentStates: Record<string, boolean | null> = {};
       for (const parentId of newOrder) {
@@ -207,9 +249,15 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
   const handleMoveColumnLeft = (columnIndex: number) => {
     if (columnIndex === 0) return;
     const newOrder = [...columnOrder];
-    [newOrder[columnIndex - 1], newOrder[columnIndex]] = [newOrder[columnIndex], newOrder[columnIndex - 1]];
+    [newOrder[columnIndex - 1], newOrder[columnIndex]] = [
+      newOrder[columnIndex],
+      newOrder[columnIndex - 1],
+    ];
     setColumnOrder(newOrder);
-    const reconstructed = reconstructEntriesWithColumnOrder(localEntries, newOrder);
+    const reconstructed = reconstructEntriesWithColumnOrder(
+      localEntries,
+      newOrder,
+    );
     setLocalEntries(reconstructed);
     onChange(reconstructed, newOrder);
   };
@@ -217,9 +265,15 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
   const handleMoveColumnRight = (columnIndex: number) => {
     if (columnIndex === parentIds.length - 1) return;
     const newOrder = [...columnOrder];
-    [newOrder[columnIndex], newOrder[columnIndex + 1]] = [newOrder[columnIndex + 1], newOrder[columnIndex]];
+    [newOrder[columnIndex], newOrder[columnIndex + 1]] = [
+      newOrder[columnIndex + 1],
+      newOrder[columnIndex],
+    ];
     setColumnOrder(newOrder);
-    const reconstructed = reconstructEntriesWithColumnOrder(localEntries, newOrder);
+    const reconstructed = reconstructEntriesWithColumnOrder(
+      localEntries,
+      newOrder,
+    );
     setLocalEntries(reconstructed);
     onChange(reconstructed, newOrder);
   };
@@ -255,7 +309,9 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
           max="1"
           className="input w-full"
           value={probability}
-          onChange={(e) => handleProbabilityChange(0, parseFloat(e.target.value))}
+          onChange={(e) =>
+            handleProbabilityChange(0, parseFloat(e.target.value))
+          }
         />
         <span className="label-text-alt opacity-70">
           Prior probability (no parents)
@@ -268,7 +324,9 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
     return (
       <div className="space-y-3">
         <label className="label">
-          <span className="label-text font-semibold">Conditional Probability Table</span>
+          <span className="label-text font-semibold">
+            Conditional Probability Table
+          </span>
         </label>
 
         <div className="overflow-x-auto">
@@ -286,7 +344,8 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
                 <tr key={entryIndex}>
                   {parentIds.map((parentId) => {
                     const state = entry.parentStates[parentId];
-                    const displayValue = state === null ? "any" : state ? "true" : "false";
+                    const displayValue =
+                      state === null ? "any" : state ? "true" : "false";
                     return (
                       <td key={parentId} className="font-mono">
                         {displayValue}
@@ -303,8 +362,8 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
         </div>
 
         <div className="text-xs opacity-70">
-          Each rule specifies parent states (true/false/any) and the node probability, with "any" matching
-          both true and false.
+          Each rule specifies parent states (true/false/any) and the node
+          probability, with "any" matching both true and false.
         </div>
       </div>
     );
@@ -313,31 +372,44 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between mb-2">
-        <span className="label-text font-semibold">Conditional Probability Table</span>
+        <span className="label-text font-semibold">
+          Conditional Probability Table
+        </span>
         <button
           type="button"
           className={`btn btn-xs btn-ghost btn-circle ${isReorderingMode ? "btn-active" : ""}`}
           onClick={() => setIsReorderingMode(!isReorderingMode)}
-          aria-label={isReorderingMode ? "Hide reordering controls" : "Show reordering controls"}
-          title={isReorderingMode ? "Hide reordering controls" : "Show reordering controls"}
+          aria-label={
+            isReorderingMode
+              ? "Hide reordering controls"
+              : "Show reordering controls"
+          }
+          title={
+            isReorderingMode
+              ? "Hide reordering controls"
+              : "Show reordering controls"
+          }
         >
           <ArrowUpDown className="w-3 h-3" />
         </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="table table-xs table-zebra">
+      <div className="overflow-x-auto border border-base-300/50 rounded-lg">
+        <table className="table table-xs table-zebra border-collapse">
           <thead>
-            <tr className="bg-base-300/40">
+            <tr className="bg-base-300/40 border-b border-base-300/50">
               {isReorderingMode && <th></th>}
               {parentIds.map((parentId, columnIndex) => {
-                const parent = parentNodes.find(p => p._id === parentId);
+                const parent = parentNodes.find((p) => p._id === parentId);
                 if (!parent) return null;
                 const canRemove = localEntries.every(
-                  (entry) => entry.parentStates[parent._id] === null
+                  (entry) => entry.parentStates[parent._id] === null,
                 );
                 return (
-                  <th key={parent._id} className="relative">
+                  <th
+                    key={parent._id}
+                    className="relative border-r border-base-300/30"
+                  >
                     <div className="flex flex-col">
                       {isReorderingMode && (
                         <div className="flex justify-center gap-1">
@@ -362,21 +434,27 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
                         </div>
                       )}
                       <div className="flex items-center justify-center gap-1">
-                        <span className="text-center text-xs">{parent.title}</span>
+                        <span className="text-center text-xs">
+                          {parent.title}
+                        </span>
                         {canRemove && (
                           <button
                             type="button"
                             className="btn btn-xs btn-ghost btn-circle opacity-50 hover:opacity-100"
                             onClick={() => {
                               const newEntries = localEntries.map((entry) => {
-                                const newParentStates = { ...entry.parentStates };
+                                const newParentStates = {
+                                  ...entry.parentStates,
+                                };
                                 delete newParentStates[parent._id];
                                 return {
                                   parentStates: newParentStates,
                                   probability: entry.probability,
                                 };
                               });
-                              const newOrder = parentIds.filter(id => id !== parent._id);
+                              const newOrder = parentIds.filter(
+                                (id) => id !== parent._id,
+                              );
                               setLocalEntries(newEntries);
                               setColumnOrder(newOrder);
                               onChange(newEntries, newOrder);
@@ -397,13 +475,20 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
                   <span className="text-center text-xs">Probability</span>
                 </div>
               </th>
+              {isReorderingMode && (
+                <th>
+                  <div className="flex flex-col">
+                    <div className="h-[24px]"></div>
+                  </div>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
             {localEntries.map((entry, entryIndex) => (
               <tr key={entryIndex}>
                 {isReorderingMode && (
-                  <td className="!p-0">
+                  <td className="!p-0 border-r border-base-300/30">
                     <div className="flex">
                       <button
                         type="button"
@@ -427,17 +512,27 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
                   </td>
                 )}
                 {parentIds.map((parentId) => {
-                  const parentNode = parentNodes.find(n => n._id === parentId);
+                  const parentNode = parentNodes.find(
+                    (n) => n._id === parentId,
+                  );
                   const parentLabel = parentNode?.title || parentId;
                   const currentValue = entry.parentStates[parentId];
-                  const hasComplement = currentValue !== null && findComplementRow(localEntries, entryIndex, parentId) !== null;
+                  const hasComplement =
+                    currentValue !== null &&
+                    findComplementRow(localEntries, entryIndex, parentId) !==
+                      null;
                   const isDisabled = currentValue !== null && !hasComplement;
-                  const displayValue = currentValue === null ? "any" : currentValue ? "true" : "false";
+                  const displayValue =
+                    currentValue === null
+                      ? "any"
+                      : currentValue
+                        ? "true"
+                        : "false";
 
                   return (
-                    <td key={parentId}>
+                    <td key={parentId} className="border-r border-base-300/30">
                       <select
-                        className="select select-xs w-full min-w-12 px-2 bg-gradient-to-r from-base-100 to-base-100/80 [background-position:calc(100%_-_10px)_calc(1px_+_50%),calc(100%_-_6.1px)_calc(1px_+_50%)] disabled:bg-base-100 disabled:text-base-content/80 disabled:[background-image:none]"
+                        className="select select-xs w-full min-w-12 px-2 [background-position:calc(100%_-_10px)_calc(1px_+_50%),calc(100%_-_6.1px)_calc(1px_+_50%)] disabled:bg-base-100 disabled:text-base-content/80 disabled:[background-image:none]"
                         value={displayValue}
                         onChange={(e) => {
                           const value =
@@ -465,11 +560,38 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
                     className="input input-xs w-20"
                     value={entry.probability}
                     onChange={(e) =>
-                      handleProbabilityChange(entryIndex, parseFloat(e.target.value))
+                      handleProbabilityChange(
+                        entryIndex,
+                        parseFloat(e.target.value),
+                      )
                     }
                     aria-label={`Probability for rule ${entryIndex + 1}`}
                   />
                 </td>
+                {isReorderingMode && (
+                  <td className="!p-0 border-l border-base-300/30">
+                    <div className="flex">
+                      <button
+                        type="button"
+                        className="btn btn-xs btn-ghost px-1"
+                        onClick={() => handleMoveRowUp(entryIndex)}
+                        disabled={entryIndex === 0}
+                        aria-label="Move rule up"
+                      >
+                        <ArrowUp className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-xs btn-ghost px-1"
+                        onClick={() => handleMoveRowDown(entryIndex)}
+                        disabled={entryIndex === localEntries.length - 1}
+                        aria-label="Move rule down"
+                      >
+                        <ArrowDown className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -477,10 +599,9 @@ export function CPTEditor({ cptEntries, parentNodes, columnOrder: initialColumnO
       </div>
 
       <div className="text-xs opacity-70">
-        Each rule specifies parent states (true/false/any) and the node probability, with "any" matching
-        both true and false.
+        Each rule specifies parent states (true/false/any) and the node
+        probability, with "any" matching both true and false.
       </div>
     </div>
   );
 }
-

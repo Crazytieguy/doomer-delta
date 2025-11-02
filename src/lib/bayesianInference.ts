@@ -16,18 +16,22 @@ interface Factor {
 // Helper: serialize assignment to string key
 function serializeAssignment(assignment: Map<Id<"nodes">, boolean>): string {
   const sorted = Array.from(assignment.entries()).sort((a, b) =>
-    a[0].localeCompare(b[0])
+    a[0].localeCompare(b[0]),
   );
-  return sorted.map(([id, val]) => `${id}:${val ? 'T' : 'F'}`).join(',');
+  return sorted.map(([id, val]) => `${id}:${val ? "T" : "F"}`).join(",");
 }
 
 // Helper: enumerate all binary assignments for a set of variables
-function enumerateBinaryAssignments(vars: Id<"nodes">[]): Map<Id<"nodes">, boolean>[] {
+function enumerateBinaryAssignments(
+  vars: Id<"nodes">[],
+): Map<Id<"nodes">, boolean>[] {
   if (vars.length === 0) return [new Map()];
 
   // Check for too many variables (avoid exponential explosion and bit-shift limits)
   if (vars.length > 20) {
-    throw new Error(`Factor scope too large: ${vars.length} variables. Variable elimination requires exponential memory.`);
+    throw new Error(
+      `Factor scope too large: ${vars.length} variables. Variable elimination requires exponential memory.`,
+    );
   }
 
   const results: Map<Id<"nodes">, boolean>[] = [];
@@ -51,7 +55,7 @@ function enumerateBinaryAssignments(vars: Id<"nodes">[]): Map<Id<"nodes">, boole
 // Helper: project assignment to subset of variables
 function projectAssignment(
   assignment: Map<Id<"nodes">, boolean>,
-  scope: Id<"nodes">[]
+  scope: Id<"nodes">[],
 ): Map<Id<"nodes">, boolean> {
   const projected = new Map<Id<"nodes">, boolean>();
   for (const v of scope) {
@@ -64,7 +68,10 @@ function projectAssignment(
 }
 
 // Helper: union of two scopes
-function unionScopes(scope1: Id<"nodes">[], scope2: Id<"nodes">[]): Id<"nodes">[] {
+function unionScopes(
+  scope1: Id<"nodes">[],
+  scope2: Id<"nodes">[],
+): Id<"nodes">[] {
   const set = new Set([...scope1, ...scope2]);
   return Array.from(set);
 }
@@ -72,7 +79,7 @@ function unionScopes(scope1: Id<"nodes">[], scope2: Id<"nodes">[]): Id<"nodes">[
 // Lookup conditional probability with most-specific match rule
 function lookupConditional(
   node: NodeWithCPT,
-  parentAssignment: Map<Id<"nodes">, boolean>
+  parentAssignment: Map<Id<"nodes">, boolean>,
 ): number {
   let bestEntry = null;
   let bestSpecificity = -1;
@@ -81,7 +88,9 @@ function lookupConditional(
     let matches = true;
     let specificity = 0;
 
-    for (const [parentId, requiredState] of Object.entries(entry.parentStates)) {
+    for (const [parentId, requiredState] of Object.entries(
+      entry.parentStates,
+    )) {
       if (requiredState !== null) {
         specificity++;
         const actualState = parentAssignment.get(parentId as Id<"nodes">);
@@ -100,7 +109,9 @@ function lookupConditional(
 
   if (!bestEntry) {
     // No matching CPT entry found - CPT is incomplete
-    throw new Error(`Invalid CPT for node ${node._id}: no matching entry found for parent configuration. CPT must include a wildcard entry to cover all cases.`);
+    throw new Error(
+      `Invalid CPT for node ${node._id}: no matching entry found for parent configuration. CPT must include a wildcard entry to cover all cases.`,
+    );
   }
 
   return bestEntry.probability;
@@ -120,7 +131,7 @@ function buildSingleNodeFactor(node: NodeWithCPT): Factor {
 
     const probTrue = lookupConditional(node, parentAssignment);
 
-    const prob = nodeValue ? probTrue : (1 - probTrue);
+    const prob = nodeValue ? probTrue : 1 - probTrue;
     table.set(serializeAssignment(assignment), prob);
   }
 
@@ -128,7 +139,10 @@ function buildSingleNodeFactor(node: NodeWithCPT): Factor {
 }
 
 // Build a deterministic intervention factor (for do(node=value) operations)
-function buildInterventionFactor(nodeId: Id<"nodes">, probability: number): Factor {
+function buildInterventionFactor(
+  nodeId: Id<"nodes">,
+  probability: number,
+): Factor {
   const scope = [nodeId];
   const table = new Map<string, number>();
 
@@ -176,7 +190,7 @@ function factorProduct(f1: Factor, f2: Factor): Factor {
 
 // Marginalize out a variable
 function sumOut(factor: Factor, variable: Id<"nodes">): Factor {
-  const newScope = factor.scope.filter(v => v !== variable);
+  const newScope = factor.scope.filter((v) => v !== variable);
   const table = new Map<string, number>();
 
   // Enumerate assignments to the new scope
@@ -203,7 +217,7 @@ function sumOut(factor: Factor, variable: Id<"nodes">): Factor {
 // Variable elimination to compute marginals
 function eliminateAllExcept(
   factors: Factor[],
-  queryVars: Id<"nodes">[]
+  queryVars: Id<"nodes">[],
 ): Factor {
   // Determine elimination order (variables not in query)
   const allVars = new Set<Id<"nodes">>();
@@ -277,7 +291,7 @@ function getParentIds(node: NodeWithCPT): Id<"nodes">[] {
 }
 
 function computeAllMarginalsOptimized(
-  factors: Factor[]
+  factors: Factor[],
 ): Map<Id<"nodes">, number> {
   const probabilities = new Map<Id<"nodes">, number>();
 
@@ -359,7 +373,7 @@ export function computeMarginalProbabilities(
   options?: {
     targetNodeId?: Id<"nodes">;
     prebuiltFactors?: Factor[];
-  }
+  },
 ): Map<Id<"nodes">, number> {
   if (nodes.length === 0) return new Map();
 
@@ -374,7 +388,7 @@ export function computeMarginalProbabilities(
 
   // For single node queries, use the existing elimination approach
   const probabilities = new Map<Id<"nodes">, number>();
-  const nodesToCompute = nodes.filter(n => n._id === options.targetNodeId);
+  const nodesToCompute = nodes.filter((n) => n._id === options.targetNodeId);
 
   for (const node of nodesToCompute) {
     const result = eliminateAllExcept(factors, [node._id]);
@@ -398,7 +412,7 @@ export function computeMarginalProbabilities(
 
 function getAncestors(
   nodeId: Id<"nodes">,
-  nodes: NodeWithCPT[]
+  nodes: NodeWithCPT[],
 ): Set<Id<"nodes">> {
   const ancestors = new Set<Id<"nodes">>();
   const visited = new Set<Id<"nodes">>();
@@ -409,7 +423,7 @@ function getAncestors(
     if (visited.has(currentId)) continue;
     visited.add(currentId);
 
-    const currentNode = nodes.find(n => n._id === currentId);
+    const currentNode = nodes.find((n) => n._id === currentId);
     if (!currentNode) continue;
 
     const parentIds = getParentIds(currentNode);
@@ -445,7 +459,7 @@ function getAncestors(
  */
 export function computeSensitivity(
   nodes: NodeWithCPT[],
-  targetNodeId: Id<"nodes">
+  targetNodeId: Id<"nodes">,
 ): Map<Id<"nodes">, number> {
   const sensitivities = new Map<Id<"nodes">, number>();
   const ancestors = getAncestors(targetNodeId, nodes);
@@ -455,7 +469,7 @@ export function computeSensitivity(
   }
 
   // Build node lookup map for O(1) access
-  const nodeMap = new Map(nodes.map(n => [n._id, n]));
+  const nodeMap = new Map(nodes.map((n) => [n._id, n]));
 
   // Build baseline factors once (major optimization)
   const baselineFactors = buildInitialFactors(nodes);
@@ -466,7 +480,7 @@ export function computeSensitivity(
     if (!ancestorNode) continue;
 
     // Find the index of this ancestor's factor in the baseline
-    const ancestorIndex = nodes.findIndex(n => n._id === ancestorId);
+    const ancestorIndex = nodes.findIndex((n) => n._id === ancestorId);
     if (ancestorIndex === -1) continue;
 
     // Compute P(target | do(ancestor=true))

@@ -23,7 +23,7 @@ async function isReachableFrom(
     startNodeId: Id<"nodes">;
     targetNodeId: Id<"nodes">;
     modelId: Id<"models">;
-  }
+  },
 ): Promise<boolean> {
   const { startNodeId, targetNodeId, modelId } = args;
   const visited = new Set<string>();
@@ -44,7 +44,7 @@ async function isReachableFrom(
 
     const parentIds = new Set<string>();
     for (const entry of currentNode.cptEntries) {
-      Object.keys(entry.parentStates).forEach(id => parentIds.add(id));
+      Object.keys(entry.parentStates).forEach((id) => parentIds.add(id));
     }
 
     for (const parentId of parentIds) {
@@ -63,10 +63,12 @@ export const listByModel = query({
 
     const user = await getCurrentUserOrNull(ctx);
     if (!user) {
-      return model.isPublic ? await ctx.db
-        .query("nodes")
-        .withIndex("by_modelId", (q) => q.eq("modelId", args.modelId))
-        .collect() : [];
+      return model.isPublic
+        ? await ctx.db
+            .query("nodes")
+            .withIndex("by_modelId", (q) => q.eq("modelId", args.modelId))
+            .collect()
+        : [];
     }
 
     if (model.ownerId !== user._id && !model.isPublic) {
@@ -143,7 +145,7 @@ export const update = mutation({
 
       const newParentIds = new Set<string>();
       for (const entry of args.cptEntries) {
-        Object.keys(entry.parentStates).forEach(id => newParentIds.add(id));
+        Object.keys(entry.parentStates).forEach((id) => newParentIds.add(id));
       }
 
       if (newParentIds.has(args.id)) {
@@ -153,7 +155,9 @@ export const update = mutation({
       // Get existing parent IDs to only check cycle detection for new parents
       const existingParentIds = new Set<string>();
       for (const entry of node.cptEntries) {
-        Object.keys(entry.parentStates).forEach(id => existingParentIds.add(id));
+        Object.keys(entry.parentStates).forEach((id) =>
+          existingParentIds.add(id),
+        );
       }
 
       for (const parentId of newParentIds) {
@@ -174,7 +178,7 @@ export const update = mutation({
           });
           if (wouldCreateCycle) {
             throw new ConvexError(
-              `Cannot add parent: would create a cycle in the graph. Bayesian networks must be directed acyclic graphs (DAGs).`
+              `Cannot add parent: would create a cycle in the graph. Bayesian networks must be directed acyclic graphs (DAGs).`,
             );
           }
         }
@@ -183,7 +187,9 @@ export const update = mutation({
       updates.cptEntries = args.cptEntries;
 
       if (args.columnOrder === undefined && node.columnOrder !== undefined) {
-        updates.columnOrder = node.columnOrder.filter(id => newParentIds.has(id));
+        updates.columnOrder = node.columnOrder.filter((id) =>
+          newParentIds.has(id),
+        );
       }
     }
 
@@ -211,23 +217,25 @@ export const remove = mutation({
       .collect();
 
     for (const childNode of allNodes) {
-      const hasNonNullDependency = childNode.cptEntries.some(entry => {
+      const hasNonNullDependency = childNode.cptEntries.some((entry) => {
         const parentState = entry.parentStates[args.id];
         return parentState !== undefined && parentState !== null;
       });
 
       if (hasNonNullDependency) {
         throw new ConvexError(
-          `Cannot delete: "${childNode.title}" has specific probabilities for this node. Set to "any" first.`
+          `Cannot delete: "${childNode.title}" has specific probabilities for this node. Set to "any" first.`,
         );
       }
     }
 
     for (const childNode of allNodes) {
-      const hasDeletedParent = childNode.cptEntries.some(entry => args.id in entry.parentStates);
+      const hasDeletedParent = childNode.cptEntries.some(
+        (entry) => args.id in entry.parentStates,
+      );
 
       if (hasDeletedParent) {
-        const newCptEntries = childNode.cptEntries.map(entry => {
+        const newCptEntries = childNode.cptEntries.map((entry) => {
           const newParentStates = { ...entry.parentStates };
           delete newParentStates[args.id];
           return {
@@ -236,7 +244,9 @@ export const remove = mutation({
           };
         });
 
-        const newColumnOrder = childNode.columnOrder?.filter(id => id !== args.id);
+        const newColumnOrder = childNode.columnOrder?.filter(
+          (id) => id !== args.id,
+        );
 
         await ctx.db.patch(childNode._id, {
           cptEntries: newCptEntries,

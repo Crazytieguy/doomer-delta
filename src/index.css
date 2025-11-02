@@ -79,11 +79,11 @@ body {
 
 /* ReactFlow theming to match daisyUI */
 .react-flow {
-  @apply bg-gradient-to-br from-base-300 to-base-200 via-base-300/80;
+  @apply bg-secondary/5;
 }
 
 .react-flow .react-flow__node {
-  @apply bg-base-100 text-base-content border-base-300 rounded-lg shadow-md;
+  @apply bg-base-100 rounded-lg;
 }
 
 .react-flow .react-flow__node.selected {
@@ -103,33 +103,33 @@ body {
 }
 
 .react-flow .react-flow__edge-path {
-  @apply stroke-base-content/40;
+  @apply stroke-secondary/50;
+  stroke-width: 1.5;
 }
 
 .react-flow .react-flow__edge.selected .react-flow__edge-path {
-  @apply stroke-primary;
+  @apply stroke-secondary;
+  stroke-width: 2;
 }
 
 .react-flow .react-flow__minimap {
-  @apply bg-base-200 border border-base-300/50 shadow-lg rounded-lg;
+  @apply bg-secondary/5 shadow-lg rounded-lg backdrop-blur-sm;
 }
 
 .react-flow .react-flow__minimap svg {
-  @apply bg-base-300/40;
+  @apply bg-transparent;
 }
 
 .react-flow .react-flow__minimap-mask {
-  @apply fill-primary/20;
-  fill-opacity: 0.15;
+  @apply fill-accent/12;
 }
 
 .react-flow .react-flow__minimap-node {
-  @apply fill-base-200/60;
-  opacity: 0.7;
+  @apply fill-primary/40;
 }
 
 .react-flow .react-flow__controls {
-  @apply bg-base-200/80 backdrop-blur-sm border border-base-300/50 shadow-lg rounded-lg;
+  @apply bg-base-100/90 backdrop-blur-sm border border-base-300 shadow-lg rounded-lg;
 }
 
 .react-flow .react-flow__controls button {
@@ -159,4 +159,3 @@ body {
 .react-flow .react-flow__attribution a:hover {
   @apply opacity-100;
 }
-
