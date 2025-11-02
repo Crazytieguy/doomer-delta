@@ -1,7 +1,7 @@
 import { convexQuery } from "@convex-dev/react-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMutation } from "convex/react";
+import { useConvexAuth, useMutation } from "convex/react";
 import { Copy, GitFork, Globe, GlobeLock } from "lucide-react";
 import { useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -32,6 +32,7 @@ export const Route = createFileRoute("/models/$modelId")({
 function ModelDetailPage() {
   const { modelId } = Route.useParams();
   const navigate = useNavigate();
+  const { isAuthenticated } = useConvexAuth();
 
   const { data: model } = useSuspenseQuery(
     modelQueryOptions(modelId as Id<"models">),
@@ -198,13 +199,21 @@ function ModelDetailPage() {
                   <Copy className="w-4 h-4" />
                   Copy Link
                 </button>
-                <button
-                  className="btn btn-sm btn-secondary"
-                  onClick={() => void handleClone()}
+                <div
+                  className="tooltip"
+                  data-tip={
+                    !isAuthenticated ? "Sign in to clone this model" : undefined
+                  }
                 >
-                  <GitFork className="w-4 h-4" />
-                  Clone
-                </button>
+                  <button
+                    className="btn btn-sm btn-secondary"
+                    onClick={() => void handleClone()}
+                    disabled={!isAuthenticated}
+                  >
+                    <GitFork className="w-4 h-4" />
+                    Clone
+                  </button>
+                </div>
               </div>
             </div>
             {modelDescription ? (
@@ -250,13 +259,21 @@ function ModelDetailPage() {
                   <Copy className="w-4 h-4" />
                   Copy Link
                 </button>
-                <button
-                  className="btn btn-sm btn-secondary"
-                  onClick={() => void handleClone()}
+                <div
+                  className="tooltip"
+                  data-tip={
+                    !isAuthenticated ? "Sign in to clone this model" : undefined
+                  }
                 >
-                  <GitFork className="w-4 h-4" />
-                  Clone
-                </button>
+                  <button
+                    className="btn btn-sm btn-secondary"
+                    onClick={() => void handleClone()}
+                    disabled={!isAuthenticated}
+                  >
+                    <GitFork className="w-4 h-4" />
+                    Clone
+                  </button>
+                </div>
               </div>
             </div>
             <div
