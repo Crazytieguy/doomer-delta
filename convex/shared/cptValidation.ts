@@ -49,6 +49,12 @@ export function expandEntry(entry: CPTEntry, parentIds: string[]): string[] {
     }
   }
 
+  if (nullIndices.length > 8) {
+    throw new Error(
+      "Too many 'any' values. Maximum 8 per rule to prevent exponential explosion.",
+    );
+  }
+
   const numExpansions = Math.pow(2, nullIndices.length);
   const combinations: string[] = [];
 
