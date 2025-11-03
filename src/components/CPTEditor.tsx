@@ -4,10 +4,14 @@ import {
   ArrowRight,
   ArrowUp,
   ArrowUpDown,
+  Lock,
+  Unlock,
+  X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { CPTEntry } from "../../convex/shared/cptValidation";
+import { validateCPTEntries } from "../../convex/shared/cptValidation";
 
 interface CPTEditorProps {
   cptEntries: CPTEntry[];
@@ -23,10 +27,12 @@ export function CPTEditor({
   parentNodes,
   columnOrder: initialColumnOrder,
   onChange,
+  onValidationChange,
   isReadOnly,
 }: CPTEditorProps) {
   const [localEntries, setLocalEntries] = useState(cptEntries);
   const [isReorderingMode, setIsReorderingMode] = useState(false);
+  const [isLocked, setIsLocked] = useState(true);
   const [columnOrder, setColumnOrder] = useState<Id<"nodes">[]>([]);
 
   useEffect(() => {
@@ -41,6 +47,18 @@ export function CPTEditor({
     columnOrder.length > 0
       ? columnOrder
       : (Object.keys(localEntries[0]?.parentStates || {}) as Id<"nodes">[]);
+
+  const validation = useMemo(
+    () =>
+      isLocked ? { valid: true as const } : validateCPTEntries(localEntries),
+    [isLocked, localEntries],
+  );
+
+  useEffect(() => {
+    if (onValidationChange && !isLocked) {
+      onValidationChange(validation.valid, validation.valid ? null : validation.error);
+    }
+  }, [isLocked, onValidationChange, validation]);
 
   // Helper: Find complement row (same parentStates except specified parent is opposite)
   const findComplementRow = (
@@ -106,73 +124,85 @@ export function CPTEditor({
     const currentEntry = newEntries[entryIndex];
     const oldValue = currentEntry.parentStates[parentId];
 
-    // Case 1: any → true/false (create complement)
-    if (oldValue === null && value !== null) {
-      const complementRow = findComplementRow(newEntries, entryIndex, parentId);
+    if (isLocked) {
+      // LOCKED MODE: Auto-complement behavior
+      // Case 1: any → true/false (create complement)
+      if (oldValue === null && value !== null) {
+        const complementRow = findComplementRow(newEntries, entryIndex, parentId);
 
-      // Update current row
-      newEntries[entryIndex] = {
-        ...currentEntry,
-        parentStates: {
-          ...currentEntry.parentStates,
-          [parentId]: value,
-        },
-      };
-
-      // Create complement if it doesn't exist
-      if (complementRow === null) {
-        const complement = createComplement(
-          newEntries[entryIndex],
-          parentId,
-          value,
-        );
-        newEntries.splice(entryIndex + 1, 0, complement);
-      }
-    }
-    // Case 2: true ↔ false (swap complement)
-    else if (oldValue !== null && value !== null && oldValue !== value) {
-      const complementRow = findComplementRow(newEntries, entryIndex, parentId);
-
-      // Update current row
-      newEntries[entryIndex] = {
-        ...currentEntry,
-        parentStates: {
-          ...currentEntry.parentStates,
-          [parentId]: value,
-        },
-      };
-
-      // Swap complement row if it exists
-      if (complementRow !== null) {
-        newEntries[complementRow] = {
-          ...newEntries[complementRow],
+        // Update current row
+        newEntries[entryIndex] = {
+          ...currentEntry,
           parentStates: {
-            ...newEntries[complementRow].parentStates,
-            [parentId]: !value,
+            ...currentEntry.parentStates,
+            [parentId]: value,
+          },
+        };
+
+        // Create complement if it doesn't exist
+        if (complementRow === null) {
+          const complement = createComplement(
+            newEntries[entryIndex],
+            parentId,
+            value,
+          );
+          newEntries.splice(entryIndex + 1, 0, complement);
+        }
+      }
+      // Case 2: true ↔ false (swap complement)
+      else if (oldValue !== null && value !== null && oldValue !== value) {
+        const complementRow = findComplementRow(newEntries, entryIndex, parentId);
+
+        // Update current row
+        newEntries[entryIndex] = {
+          ...currentEntry,
+          parentStates: {
+            ...currentEntry.parentStates,
+            [parentId]: value,
+          },
+        };
+
+        // Swap complement row if it exists
+        if (complementRow !== null) {
+          newEntries[complementRow] = {
+            ...newEntries[complementRow],
+            parentStates: {
+              ...newEntries[complementRow].parentStates,
+              [parentId]: !value,
+            },
+          };
+        }
+      }
+      // Case 3: true/false → any (delete complement)
+      else if (oldValue !== null && value === null) {
+        const complementRow = findComplementRow(newEntries, entryIndex, parentId);
+
+        // Update current row
+        newEntries[entryIndex] = {
+          ...currentEntry,
+          parentStates: {
+            ...currentEntry.parentStates,
+            [parentId]: value,
+          },
+        };
+
+        // Delete complement row if it exists
+        if (complementRow !== null) {
+          newEntries.splice(complementRow, 1);
+        }
+      }
+      // Case 4: any → any (no change, shouldn't happen but handle it)
+      else {
+        newEntries[entryIndex] = {
+          ...currentEntry,
+          parentStates: {
+            ...currentEntry.parentStates,
+            [parentId]: value,
           },
         };
       }
-    }
-    // Case 3: true/false → any (delete complement)
-    else if (oldValue !== null && value === null) {
-      const complementRow = findComplementRow(newEntries, entryIndex, parentId);
-
-      // Update current row
-      newEntries[entryIndex] = {
-        ...currentEntry,
-        parentStates: {
-          ...currentEntry.parentStates,
-          [parentId]: value,
-        },
-      };
-
-      // Delete complement row if it exists
-      if (complementRow !== null) {
-        newEntries.splice(complementRow, 1);
-      }
-    }
-    // Case 4: any → any (no change, shouldn't happen but handle it)
-    else {
+    } else {
+      // UNLOCKED MODE: Free editing, just update the value
       newEntries[entryIndex] = {
         ...currentEntry,
         parentStates: {
@@ -222,6 +252,27 @@ export function CPTEditor({
       newEntries[index + 1],
       newEntries[index],
     ];
+    setLocalEntries(newEntries);
+    onChange(newEntries, parentIds);
+  };
+
+  const handleAddRow = () => {
+    const newParentStates: Record<string, boolean | null> = {};
+    for (const parentId of parentIds) {
+      newParentStates[parentId] = null;
+    }
+    const newEntry: CPTEntry = {
+      parentStates: newParentStates,
+      probability: 0.5,
+    };
+    const newEntries = [...localEntries, newEntry];
+    setLocalEntries(newEntries);
+    onChange(newEntries, parentIds);
+  };
+
+  const handleDeleteRow = (index: number) => {
+    const newEntries = [...localEntries];
+    newEntries.splice(index, 1);
     setLocalEntries(newEntries);
     onChange(newEntries, parentIds);
   };
@@ -374,23 +425,53 @@ export function CPTEditor({
         <span className="label-text font-semibold">
           Conditional Probability Table
         </span>
-        <button
-          type="button"
-          className={`btn btn-xs btn-ghost btn-circle ${isReorderingMode ? "btn-active" : ""}`}
-          onClick={() => setIsReorderingMode(!isReorderingMode)}
-          aria-label={
-            isReorderingMode
-              ? "Hide reordering controls"
-              : "Show reordering controls"
-          }
-          title={
-            isReorderingMode
-              ? "Hide reordering controls"
-              : "Show reordering controls"
-          }
-        >
-          <ArrowUpDown className="w-3 h-3" />
-        </button>
+        <div className="flex gap-1">
+          <div
+            className="tooltip tooltip-left"
+            data-tip={
+              !isLocked && !validation.valid
+                ? "Fix validation errors before locking"
+                : isLocked
+                  ? "Unlock for free editing"
+                  : "Lock table"
+            }
+          >
+            <button
+              type="button"
+              className={`btn btn-xs btn-ghost btn-circle ${isLocked ? "" : "btn-active"}`}
+              onClick={() => setIsLocked(!isLocked)}
+              disabled={!isLocked && !validation.valid}
+              aria-label={isLocked ? "Unlock for free editing" : "Lock table"}
+            >
+              {isLocked ? (
+                <Lock className="w-3 h-3" />
+              ) : (
+                <Unlock className="w-3 h-3" />
+              )}
+            </button>
+          </div>
+          <div
+            className="tooltip tooltip-left"
+            data-tip={
+              isReorderingMode
+                ? "Hide reordering controls"
+                : "Show reordering controls"
+            }
+          >
+            <button
+              type="button"
+              className={`btn btn-xs btn-ghost btn-circle ${isReorderingMode ? "btn-active" : ""}`}
+              onClick={() => setIsReorderingMode(!isReorderingMode)}
+              aria-label={
+                isReorderingMode
+                  ? "Hide reordering controls"
+                  : "Show reordering controls"
+              }
+            >
+              <ArrowUpDown className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="overflow-x-auto border border-base-300/50 rounded-lg">
@@ -398,6 +479,7 @@ export function CPTEditor({
           <thead>
             <tr className="bg-base-300/40 border-b border-base-300/50">
               {isReorderingMode && <th></th>}
+              {!isLocked && <th></th>}
               {parentIds.map((parentId, columnIndex) => {
                 const parent = parentNodes.find((p) => p._id === parentId);
                 if (!parent) return null;
@@ -510,6 +592,18 @@ export function CPTEditor({
                     </div>
                   </td>
                 )}
+                {!isLocked && (
+                  <td className="!p-0 border-r border-base-300/30">
+                    <button
+                      type="button"
+                      className="btn btn-xs btn-ghost btn-circle"
+                      onClick={() => handleDeleteRow(entryIndex)}
+                      aria-label="Delete row"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </td>
+                )}
                 {parentIds.map((parentId) => {
                   const parentNode = parentNodes.find(
                     (n) => n._id === parentId,
@@ -520,7 +614,7 @@ export function CPTEditor({
                     currentValue !== null &&
                     findComplementRow(localEntries, entryIndex, parentId) !==
                       null;
-                  const isDisabled = currentValue !== null && !hasComplement;
+                  const isDisabled = isLocked && currentValue !== null && !hasComplement;
                   const displayValue =
                     currentValue === null
                       ? "any"
@@ -597,10 +691,26 @@ export function CPTEditor({
         </table>
       </div>
 
+      {!isLocked && (
+        <button
+          type="button"
+          className="btn btn-sm btn-ghost w-full"
+          onClick={handleAddRow}
+        >
+          + Add Row
+        </button>
+      )}
+
       <div className="text-xs opacity-70">
         Each rule specifies parent states (true/false/any) and the node
         probability, with "any" matching both true and false.
       </div>
+
+      {!isLocked && !validation.valid && (
+        <div className="alert alert-error text-sm">
+          <span>{validation.error}</span>
+        </div>
+      )}
     </div>
   );
 }
