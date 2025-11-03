@@ -4,8 +4,9 @@ import {
   ArrowRight,
   ArrowUp,
   ArrowUpDown,
+  ChevronDown,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { CPTEntry } from "../../convex/shared/cptValidation";
 
@@ -28,6 +29,17 @@ export function CPTEditor({
   const [localEntries, setLocalEntries] = useState(cptEntries);
   const [isReorderingMode, setIsReorderingMode] = useState(false);
   const [columnOrder, setColumnOrder] = useState<Id<"nodes">[]>([]);
+  const dropdownMenuRefs = useRef<Map<string, HTMLUListElement>>(new Map());
+
+  const disableTransitionForNextClose = useCallback((parentId: string) => {
+    const menu = dropdownMenuRefs.current.get(parentId);
+    if (!menu) return;
+
+    menu.dataset.noTransition = "true";
+    requestAnimationFrame(() => {
+      delete menu.dataset.noTransition;
+    });
+  }, []);
 
   useEffect(() => {
     setLocalEntries(cptEntries);
@@ -95,6 +107,72 @@ export function CPTEditor({
       },
       probability: entry.probability, // Copy same probability
     };
+  };
+
+  // Pattern: Exactly one entry has unique value, rest have opposite value
+  const hasUniqueValuePattern = (parentId: string): boolean => {
+    const values = localEntries.map((e) => e.parentStates[parentId]);
+    const trueCount = values.filter((v) => v === true).length;
+    const falseCount = values.filter((v) => v === false).length;
+
+    // Exactly one row with true, all others have false (or vice versa)
+    const hasOneTrue = trueCount === 1 && falseCount === values.length - 1;
+    const hasOneFalse = falseCount === 1 && trueCount === values.length - 1;
+
+    return hasOneTrue || hasOneFalse;
+  };
+
+  const handleSplitColumn = (parentId: string, minorityValue: boolean) => {
+    const newEntries = [...localEntries];
+
+    // Update all existing entries to majority value
+    for (let i = 0; i < newEntries.length; i++) {
+      newEntries[i] = {
+        ...newEntries[i],
+        parentStates: {
+          ...newEntries[i].parentStates,
+          [parentId]: !minorityValue,
+        },
+      };
+    }
+
+    // Create one new entry with minority value
+    const newEntry: CPTEntry = {
+      parentStates: Object.fromEntries(
+        parentIds.map((pid) => [pid, pid === parentId ? minorityValue : null]),
+      ),
+      probability: 0.5,
+    };
+    newEntries.push(newEntry);
+
+    setLocalEntries(newEntries);
+    onChange(newEntries, parentIds);
+  };
+
+  const handleCollapseColumn = (parentId: string) => {
+    const uniqueIndex = localEntries.findIndex(
+      (e) => e.parentStates[parentId] !== null,
+    );
+    if (uniqueIndex === -1) return;
+
+    const newEntries = [...localEntries];
+
+    // Delete the unique row
+    newEntries.splice(uniqueIndex, 1);
+
+    // Set all remaining rows to "any" for this parent
+    for (let i = 0; i < newEntries.length; i++) {
+      newEntries[i] = {
+        ...newEntries[i],
+        parentStates: {
+          ...newEntries[i].parentStates,
+          [parentId]: null,
+        },
+      };
+    }
+
+    setLocalEntries(newEntries);
+    onChange(newEntries, parentIds);
   };
 
   const handleParentStateChange = (
@@ -393,7 +471,7 @@ export function CPTEditor({
         </button>
       </div>
 
-      <div className="overflow-x-auto border border-base-300/50 rounded-lg">
+      <div className="overflow-x-auto overflow-y-visible border border-base-300/50 rounded-lg">
         <table className="table table-xs table-zebra border-collapse">
           <thead>
             <tr className="bg-base-300/40 border-b border-base-300/50">
@@ -404,6 +482,8 @@ export function CPTEditor({
                 const canRemove = localEntries.every(
                   (entry) => entry.parentStates[parent._id] === null,
                 );
+                const isFirstColumn = columnIndex === 0;
+                const dropdownPosition = isFirstColumn ? "dropdown-start" : "dropdown-end";
                 return (
                   <th
                     key={parent._id}
@@ -432,37 +512,105 @@ export function CPTEditor({
                           </button>
                         </div>
                       )}
-                      <div className="flex items-center justify-center gap-1">
+                      <div className="flex items-center">
+                        <div className="flex-1"></div>
                         <span className="text-center text-xs">
                           {parent.title}
                         </span>
-                        {canRemove && (
-                          <button
-                            type="button"
-                            className="btn btn-xs btn-ghost btn-circle opacity-50 hover:opacity-100"
-                            onClick={() => {
-                              const newEntries = localEntries.map((entry) => {
-                                const newParentStates = {
-                                  ...entry.parentStates,
-                                };
-                                delete newParentStates[parent._id];
-                                return {
-                                  parentStates: newParentStates,
-                                  probability: entry.probability,
-                                };
-                              });
-                              const newOrder = parentIds.filter(
-                                (id) => id !== parent._id,
-                              );
-                              setLocalEntries(newEntries);
-                              setColumnOrder(newOrder);
-                              onChange(newEntries, newOrder);
-                            }}
-                            aria-label={`Remove parent ${parent.title}`}
-                          >
-                            ×
-                          </button>
-                        )}
+                        <div className="flex-1 flex justify-end">
+                          {(canRemove || hasUniqueValuePattern(parent._id)) && (
+                            <div className={`dropdown ${dropdownPosition}`}>
+                              <div tabIndex={0} role="button" className="btn btn-xs btn-ghost btn-circle opacity-50 hover:opacity-100">
+                                <ChevronDown className="w-3 h-3" />
+                              </div>
+                              <ul
+                                ref={(el) => {
+                                  if (el) {
+                                    dropdownMenuRefs.current.set(parent._id, el);
+                                  } else {
+                                    dropdownMenuRefs.current.delete(parent._id);
+                                  }
+                                }}
+                                tabIndex={-1}
+                                className="dropdown-content menu menu-xs bg-base-100 rounded-box z-50 w-28 p-1 shadow-lg border border-base-300 [&[data-no-transition]]:!transition-none [&[data-no-transition]]:!duration-0"
+                              >
+                                {canRemove && (
+                                  <>
+                                    <li>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          disableTransitionForNextClose(parent._id);
+                                          const activeElement = document.activeElement as HTMLElement;
+                                          activeElement?.blur();
+                                          const newEntries = localEntries.map((entry) => {
+                                            const newParentStates = {
+                                              ...entry.parentStates,
+                                            };
+                                            delete newParentStates[parent._id];
+                                            return {
+                                              parentStates: newParentStates,
+                                              probability: entry.probability,
+                                            };
+                                          });
+                                          const newOrder = parentIds.filter(
+                                            (id) => id !== parent._id,
+                                          );
+                                          setLocalEntries(newEntries);
+                                          setColumnOrder(newOrder);
+                                          onChange(newEntries, newOrder);
+                                        }}
+                                      >
+                                        Delete column
+                                      </button>
+                                    </li>
+                                    <li>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          disableTransitionForNextClose(parent._id);
+                                          const activeElement = document.activeElement as HTMLElement;
+                                          activeElement?.blur();
+                                          handleSplitColumn(parent._id, false);
+                                        }}
+                                      >
+                                        Split false
+                                      </button>
+                                    </li>
+                                    <li>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          disableTransitionForNextClose(parent._id);
+                                          const activeElement = document.activeElement as HTMLElement;
+                                          activeElement?.blur();
+                                          handleSplitColumn(parent._id, true);
+                                        }}
+                                      >
+                                        Split true
+                                      </button>
+                                    </li>
+                                  </>
+                                )}
+                                {hasUniqueValuePattern(parent._id) && (
+                                  <li>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        disableTransitionForNextClose(parent._id);
+                                        const activeElement = document.activeElement as HTMLElement;
+                                        activeElement?.blur();
+                                        handleCollapseColumn(parent._id);
+                                      }}
+                                    >
+                                      Collapse to any
+                                    </button>
+                                  </li>
+                                )}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </th>
