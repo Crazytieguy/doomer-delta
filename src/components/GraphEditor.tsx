@@ -198,6 +198,12 @@ function GraphEditorInner({
     computeMarginals(dbNodesRef.current);
   }, [probabilisticFingerprint, computeMarginals]);
 
+  useEffect(() => {
+    if (marginalsState.error) {
+      showError(marginalsState.error);
+    }
+  }, [marginalsState.error, showError]);
+
   const initialNodes: FlowNode[] = dbNodes.map((node) => ({
     id: node._id,
     type: "probability",

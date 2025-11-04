@@ -21,12 +21,6 @@ function enumerateBinaryAssignments(
 ): Map<Id<"nodes">, boolean>[] {
   if (vars.length === 0) return [new Map()];
 
-  if (vars.length > 20) {
-    throw new Error(
-      `Factor scope too large: ${vars.length} variables. Variable elimination requires exponential memory.`,
-    );
-  }
-
   const results: Map<Id<"nodes">, boolean>[] = [];
   const n = vars.length;
   const total = Math.pow(2, n);
