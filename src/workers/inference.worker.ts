@@ -6,14 +6,144 @@ import {
 
 interface Factor {
   scope: Id<"nodes">[];
-  table: Map<string, number>;
+  scopeToIndex: Map<Id<"nodes">, number>;
+  table: Float64Array;
 }
 
-function serializeAssignment(assignment: Map<Id<"nodes">, boolean>): string {
-  const sorted = Array.from(assignment.entries()).sort((a, b) =>
-    a[0].localeCompare(b[0]),
-  );
-  return sorted.map(([id, val]) => `${id}:${val ? "T" : "F"}`).join(",");
+const factorCache = new Map<string, Factor>();
+
+function assignmentToBits(
+  assignment: Map<Id<"nodes">, boolean>,
+  scopeToIndex: Map<Id<"nodes">, number>,
+): number {
+  if (scopeToIndex.size >= 31) {
+    throw new Error(
+      `Factor scope too large: ${scopeToIndex.size} variables (max 31 for bit-packing). ` +
+      `This network is too densely connected for exact inference.`,
+    );
+  }
+
+  let bits = 0;
+  for (const [id, value] of assignment) {
+    const index = scopeToIndex.get(id);
+    if (index !== undefined && value) {
+      bits |= 1 << index;
+    }
+  }
+  return bits;
+}
+
+function bitsToAssignment(
+  bits: number,
+  scope: Id<"nodes">[],
+): Map<Id<"nodes">, boolean> {
+  const assignment = new Map<Id<"nodes">, boolean>();
+  for (let i = 0; i < scope.length; i++) {
+    assignment.set(scope[i], Boolean(bits & (1 << i)));
+  }
+  return assignment;
+}
+
+function createFactorCacheKey(node: WorkerNode): string {
+  const sortedEntries = [...node.cptEntries].sort((a, b) => {
+    const aKeys = Object.keys(a.parentStates).sort().join(",");
+    const bKeys = Object.keys(b.parentStates).sort().join(",");
+    if (aKeys !== bKeys) return aKeys.localeCompare(bKeys);
+    return a.probability - b.probability;
+  });
+  return `${node._id}:${JSON.stringify(sortedEntries)}`;
+}
+
+interface CPTIndexEntry {
+  pattern: number;
+  mask: number;
+  specificity: number;
+  probability: number;
+}
+
+interface CPTIndex {
+  parentIds: Id<"nodes">[];
+  parentToIndex: Map<Id<"nodes">, number>;
+  entries: CPTIndexEntry[];
+  wildcardProbability: number;
+}
+
+const cptIndexCache = new Map<string, CPTIndex>();
+
+function buildCPTIndex(node: WorkerNode): CPTIndex {
+  const cacheKey = createFactorCacheKey(node);
+  const cached = cptIndexCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const parentIds = getParentIds(node);
+  const parentToIndex = new Map(parentIds.map((id, idx) => [id, idx]));
+  const entries: CPTIndexEntry[] = [];
+  let wildcardProbability = 0.5;
+
+  for (const entry of node.cptEntries) {
+    let pattern = 0;
+    let mask = 0;
+    let specificity = 0;
+
+    for (const [parentId, state] of Object.entries(entry.parentStates)) {
+      if (state !== null) {
+        const bitPos = parentToIndex.get(parentId as Id<"nodes">);
+        if (bitPos !== undefined) {
+          mask |= 1 << bitPos;
+          if (state) {
+            pattern |= 1 << bitPos;
+          }
+          specificity++;
+        }
+      }
+    }
+
+    if (specificity === 0) {
+      wildcardProbability = entry.probability;
+    } else {
+      entries.push({
+        pattern,
+        mask,
+        specificity,
+        probability: entry.probability,
+      });
+    }
+  }
+
+  entries.sort((a, b) => b.specificity - a.specificity);
+
+  const index = {
+    parentIds,
+    parentToIndex,
+    entries,
+    wildcardProbability,
+  };
+
+  cptIndexCache.set(cacheKey, index);
+  return index;
+}
+
+function lookupConditionalIndexed(
+  cptIndex: CPTIndex,
+  parentAssignment: Map<Id<"nodes">, boolean>,
+): number {
+  let assignmentBits = 0;
+  for (const [parentId, value] of parentAssignment) {
+    const bitPos = cptIndex.parentToIndex.get(parentId);
+    if (bitPos !== undefined && value) {
+      assignmentBits |= 1 << bitPos;
+    }
+  }
+
+  for (const entry of cptIndex.entries) {
+    if ((assignmentBits & entry.mask) === entry.pattern) {
+      return entry.probability;
+    }
+  }
+
+  return cptIndex.wildcardProbability;
 }
 
 function enumerateBinaryAssignments(
@@ -60,45 +190,6 @@ function unionScopes(
   return Array.from(set);
 }
 
-function lookupConditional(
-  node: WorkerNode,
-  parentAssignment: Map<Id<"nodes">, boolean>,
-): number {
-  let bestEntry = null;
-  let bestSpecificity = -1;
-
-  for (const entry of node.cptEntries) {
-    let matches = true;
-    let specificity = 0;
-
-    for (const [parentId, requiredState] of Object.entries(
-      entry.parentStates,
-    )) {
-      if (requiredState !== null) {
-        specificity++;
-        const actualState = parentAssignment.get(parentId as Id<"nodes">);
-        if (actualState !== requiredState) {
-          matches = false;
-          break;
-        }
-      }
-    }
-
-    if (matches && specificity > bestSpecificity) {
-      bestEntry = entry;
-      bestSpecificity = specificity;
-    }
-  }
-
-  if (!bestEntry) {
-    throw new Error(
-      `Invalid CPT for node ${node._id}: no matching entry found for parent configuration. CPT must include a wildcard entry to cover all cases.`,
-    );
-  }
-
-  return bestEntry.probability;
-}
-
 function getParentIds(node: WorkerNode): Id<"nodes">[] {
   const parentIds = new Set<Id<"nodes">>();
   for (const entry of node.cptEntries) {
@@ -110,23 +201,43 @@ function getParentIds(node: WorkerNode): Id<"nodes">[] {
 }
 
 function buildSingleNodeFactor(node: WorkerNode): Factor {
+  const cacheKey = createFactorCacheKey(node);
+  const cached = factorCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const parentIds = getParentIds(node);
   const scope = [...parentIds, node._id];
-  const table = new Map<string, number>();
 
+  if (scope.length >= 31) {
+    throw new Error(
+      `Cannot build factor for node ${node._id}: scope has ${scope.length} variables (max 31). ` +
+      `Node has too many parents for exact inference with bit-packing.`,
+    );
+  }
+
+  const scopeToIndex = new Map(scope.map((id, idx) => [id, idx]));
+  const tableSize = Math.pow(2, scope.length);
+  const table = new Float64Array(tableSize);
+
+  const cptIndex = buildCPTIndex(node);
   const assignments = enumerateBinaryAssignments(scope);
 
   for (const assignment of assignments) {
     const nodeValue = assignment.get(node._id)!;
     const parentAssignment = projectAssignment(assignment, parentIds);
 
-    const probTrue = lookupConditional(node, parentAssignment);
+    const probTrue = lookupConditionalIndexed(cptIndex, parentAssignment);
 
     const prob = nodeValue ? probTrue : 1 - probTrue;
-    table.set(serializeAssignment(assignment), prob);
+    const bits = assignmentToBits(assignment, scopeToIndex);
+    table[bits] = prob;
   }
 
-  return { scope, table };
+  const factor = { scope, scopeToIndex, table };
+  factorCache.set(cacheKey, factor);
+  return factor;
 }
 
 function buildInterventionFactor(
@@ -134,12 +245,13 @@ function buildInterventionFactor(
   probability: number,
 ): Factor {
   const scope = [nodeId];
-  const table = new Map<string, number>();
+  const scopeToIndex = new Map([[nodeId, 0]]);
+  const table = new Float64Array(2);
 
-  table.set(serializeAssignment(new Map([[nodeId, true]])), probability);
-  table.set(serializeAssignment(new Map([[nodeId, false]])), 1 - probability);
+  table[0] = 1 - probability;
+  table[1] = probability;
 
-  return { scope, table };
+  return { scope, scopeToIndex, table };
 }
 
 function buildInitialFactors(nodes: WorkerNode[]): Factor[] {
@@ -154,48 +266,60 @@ function buildInitialFactors(nodes: WorkerNode[]): Factor[] {
 
 function factorProduct(f1: Factor, f2: Factor): Factor {
   const newScope = unionScopes(f1.scope, f2.scope);
-  const table = new Map<string, number>();
 
-  const assignments = enumerateBinaryAssignments(newScope);
-
-  for (const assignment of assignments) {
-    const proj1 = projectAssignment(assignment, f1.scope);
-    const proj2 = projectAssignment(assignment, f2.scope);
-
-    const key1 = serializeAssignment(proj1);
-    const key2 = serializeAssignment(proj2);
-    const keyNew = serializeAssignment(assignment);
-
-    const val1 = f1.table.get(key1) ?? 0;
-    const val2 = f2.table.get(key2) ?? 0;
-
-    table.set(keyNew, val1 * val2);
+  if (newScope.length >= 31) {
+    throw new Error(
+      `Factor product scope too large: ${newScope.length} variables (max 31). ` +
+      `This network creates intermediate factors that are too large for exact inference. ` +
+      `Try reducing network connectivity or switching to approximate inference.`,
+    );
   }
 
-  return { scope: newScope, table };
+  const scopeToIndex = new Map(newScope.map((id, idx) => [id, idx]));
+  const tableSize = Math.pow(2, newScope.length);
+  const table = new Float64Array(tableSize);
+
+  for (let bits = 0; bits < tableSize; bits++) {
+    const assignment = bitsToAssignment(bits, newScope);
+
+    const bits1 = assignmentToBits(assignment, f1.scopeToIndex);
+    const bits2 = assignmentToBits(assignment, f2.scopeToIndex);
+
+    const val1 = f1.table[bits1] ?? 0;
+    const val2 = f2.table[bits2] ?? 0;
+
+    table[bits] = val1 * val2;
+  }
+
+  return { scope: newScope, scopeToIndex, table };
 }
 
 function sumOut(factor: Factor, variable: Id<"nodes">): Factor {
   const newScope = factor.scope.filter((v) => v !== variable);
-  const table = new Map<string, number>();
+  const scopeToIndex = new Map(newScope.map((id, idx) => [id, idx]));
+  const tableSize = Math.pow(2, newScope.length);
+  const table = new Float64Array(tableSize);
 
-  const assignments = enumerateBinaryAssignments(newScope);
+  const varIndex = factor.scopeToIndex.get(variable);
+  if (varIndex === undefined) {
+    return { scope: newScope, scopeToIndex, table };
+  }
 
-  for (const assignment of assignments) {
-    const key = serializeAssignment(assignment);
+  for (let bits = 0; bits < tableSize; bits++) {
+    const assignment = bitsToAssignment(bits, newScope);
+
     let sum = 0;
-
     for (const value of [true, false]) {
       const fullAssignment = new Map(assignment);
       fullAssignment.set(variable, value);
-      const fullKey = serializeAssignment(fullAssignment);
-      sum += factor.table.get(fullKey) ?? 0;
+      const fullBits = assignmentToBits(fullAssignment, factor.scopeToIndex);
+      sum += factor.table[fullBits] ?? 0;
     }
 
-    table.set(key, sum);
+    table[bits] = sum;
   }
 
-  return { scope: newScope, table };
+  return { scope: newScope, scopeToIndex, table };
 }
 
 function computeEliminationOrder(
@@ -319,7 +443,7 @@ function eliminateAllExcept(
   }
 
   if (currentFactors.length === 0) {
-    return { scope: [], table: new Map() };
+    return { scope: [], scopeToIndex: new Map(), table: new Float64Array(0) };
   }
 
   let result = currentFactors[0];
@@ -328,18 +452,6 @@ function eliminateAllExcept(
   }
 
   return result;
-}
-
-function deserializeAssignment(key: string): Map<Id<"nodes">, boolean> {
-  const assignment = new Map<Id<"nodes">, boolean>();
-  if (key === "") return assignment;
-
-  const pairs = key.split(",");
-  for (const pair of pairs) {
-    const [varId, value] = pair.split(":");
-    assignment.set(varId as Id<"nodes">, value === "T");
-  }
-  return assignment;
 }
 
 function computeAllMarginalsOptimized(
@@ -401,8 +513,10 @@ function computeAllMarginalsOptimized(
     let probTrue = 0;
     let probFalse = 0;
 
-    for (const [key, value] of jointForMarginal.table.entries()) {
-      const assignment = deserializeAssignment(key);
+    const tableSize = jointForMarginal.table.length;
+    for (let bits = 0; bits < tableSize; bits++) {
+      const value = jointForMarginal.table[bits];
+      const assignment = bitsToAssignment(bits, jointForMarginal.scope);
       if (assignment.get(variable) === true) {
         probTrue += value;
       } else if (assignment.get(variable) === false) {
@@ -448,10 +562,12 @@ function computeMarginalProbabilities(
   for (const node of nodesToCompute) {
     const result = eliminateAllExcept(factors, [node._id]);
 
-    const trueKey = serializeAssignment(new Map([[node._id, true]]));
-    const falseKey = serializeAssignment(new Map([[node._id, false]]));
-    const probTrue = result.table.get(trueKey) ?? 0;
-    const probFalse = result.table.get(falseKey) ?? 0;
+    const trueAssignment = new Map([[node._id, true]]);
+    const falseAssignment = new Map([[node._id, false]]);
+    const trueBits = assignmentToBits(trueAssignment, result.scopeToIndex);
+    const falseBits = assignmentToBits(falseAssignment, result.scopeToIndex);
+    const probTrue = result.table[trueBits] ?? 0;
+    const probFalse = result.table[falseBits] ?? 0;
     const total = probTrue + probFalse;
 
     const normalized = total > Number.EPSILON ? probTrue / total : 0.5;
