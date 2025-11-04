@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
@@ -20,5 +21,10 @@ export default defineConfig({
   server: {
     host: true, // For Docker
     port: 5173,
+  },
+  test: {
+    globals: true,
+    environment: "node",
+    exclude: ["**/node_modules/**", "**/e2e/**"],
   },
 });
