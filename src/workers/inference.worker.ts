@@ -487,18 +487,18 @@ function computeSensitivityIncremental(
     const ancestorIndex = nodes.findIndex((n) => n._id === ancestorId);
     if (ancestorIndex === -1) continue;
 
-    const interventionFactors = [...baselineFactors];
-
-    interventionFactors[ancestorIndex] = buildInterventionFactor(ancestorId, 1.0);
+    const factorsTrue = [...baselineFactors];
+    factorsTrue[ancestorIndex] = buildInterventionFactor(ancestorId, 1.0);
     const probsTrue = computeMarginalProbabilities(nodes, {
       targetNodeId,
-      prebuiltFactors: interventionFactors,
+      prebuiltFactors: factorsTrue,
     });
 
-    interventionFactors[ancestorIndex] = buildInterventionFactor(ancestorId, 0.0);
+    const factorsFalse = [...baselineFactors];
+    factorsFalse[ancestorIndex] = buildInterventionFactor(ancestorId, 0.0);
     const probsFalse = computeMarginalProbabilities(nodes, {
       targetNodeId,
-      prebuiltFactors: interventionFactors,
+      prebuiltFactors: factorsFalse,
     });
 
     const targetTrue = probsTrue.get(targetNodeId) ?? 0.5;
@@ -510,54 +510,58 @@ function computeSensitivityIncremental(
   }
 }
 
-self.onmessage = (event: MessageEvent) => {
-  try {
-    const message = workerRequestSchema.parse(event.data);
+export { buildInitialFactors, computeMarginalProbabilities };
 
-    if (message.type === "COMPUTE_MARGINALS") {
-      const probabilities = computeMarginalProbabilities(message.nodes);
+if (typeof self !== "undefined" && "onmessage" in self) {
+  self.onmessage = (event: MessageEvent) => {
+    try {
+      const message = workerRequestSchema.parse(event.data);
 
-      const result: Record<string, number> = {};
-      for (const [nodeId, prob] of probabilities.entries()) {
-        result[nodeId] = prob;
-      }
+      if (message.type === "COMPUTE_MARGINALS") {
+        const probabilities = computeMarginalProbabilities(message.nodes);
 
-      self.postMessage({
-        type: "MARGINALS_RESULT",
-        requestId: message.requestId,
-        probabilities: result,
-      });
-    } else if (message.type === "COMPUTE_SENSITIVITY") {
-      const sensitivities: Array<{ nodeId: Id<"nodes">; sensitivity: number }> = [];
-
-      computeSensitivityIncremental(
-        message.nodes,
-        message.targetNodeId,
-        (nodeId, sensitivity, completed, total) => {
-          sensitivities.push({ nodeId, sensitivity });
-
-          self.postMessage({
-            type: "SENSITIVITY_PROGRESS",
-            requestId: message.requestId,
-            nodeId,
-            sensitivity,
-            completed,
-            total,
-          });
+        const result: Record<string, number> = {};
+        for (const [nodeId, prob] of probabilities.entries()) {
+          result[nodeId] = prob;
         }
-      );
 
+        self.postMessage({
+          type: "MARGINALS_RESULT",
+          requestId: message.requestId,
+          probabilities: result,
+        });
+      } else if (message.type === "COMPUTE_SENSITIVITY") {
+        const sensitivities: Array<{ nodeId: Id<"nodes">; sensitivity: number }> = [];
+
+        computeSensitivityIncremental(
+          message.nodes,
+          message.targetNodeId,
+          (nodeId, sensitivity, completed, total) => {
+            sensitivities.push({ nodeId, sensitivity });
+
+            self.postMessage({
+              type: "SENSITIVITY_PROGRESS",
+              requestId: message.requestId,
+              nodeId,
+              sensitivity,
+              completed,
+              total,
+            });
+          }
+        );
+
+        self.postMessage({
+          type: "SENSITIVITY_COMPLETE",
+          requestId: message.requestId,
+          sensitivities,
+        });
+      }
+    } catch (error) {
       self.postMessage({
-        type: "SENSITIVITY_COMPLETE",
-        requestId: message.requestId,
-        sensitivities,
+        type: "ERROR",
+        requestId: event.data?.requestId || "unknown",
+        error: error instanceof Error ? error.message : String(error),
       });
     }
-  } catch (error) {
-    self.postMessage({
-      type: "ERROR",
-      requestId: event.data?.requestId || "unknown",
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-};
+  };
+}
