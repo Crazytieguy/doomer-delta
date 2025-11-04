@@ -3,6 +3,7 @@ import { Loader2, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInferenceWorker } from "@/hooks/useInferenceWorker";
 import { computeProbabilisticFingerprint } from "@/lib/probabilisticFingerprint";
+import { formatProbabilityAsPercentage } from "@/lib/formatProbability";
 import ReactFlow, {
   addEdge,
   Connection,
@@ -65,7 +66,7 @@ function ProbabilityNode({ data }: NodeProps) {
         </div>
         {probability !== undefined && (
           <div className="text-sm text-base-content/60 mt-2 tabular-nums">
-            {(probability * 100).toFixed(1)}%
+            {formatProbabilityAsPercentage(probability)}
           </div>
         )}
       </div>

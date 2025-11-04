@@ -70,6 +70,22 @@ export function expandEntry(entry: CPTEntry, parentIds: string[]): string[] {
   return combinations;
 }
 
+/**
+ * Removes duplicate wildcard entries from root nodes (nodes with no parents).
+ * Keeps only the first entry.
+ */
+export function deduplicateRootNodeEntries(entries: CPTEntry[]): CPTEntry[] {
+  if (entries.length === 0) return entries;
+
+  const parentIds = Object.keys(entries[0]?.parentStates || {});
+
+  if (parentIds.length === 0 && entries.length > 1) {
+    return [entries[0]];
+  }
+
+  return entries;
+}
+
 export function validateCPTEntries(
   entries: CPTEntry[],
 ): { valid: true } | { valid: false; error: string } {
@@ -104,6 +120,12 @@ export function validateCPTEntries(
   }
 
   if (parentIds.length === 0) {
+    if (entries.length > 1) {
+      return {
+        valid: false,
+        error: `Root nodes should have exactly one CPT entry, but found ${entries.length}. This can happen if edges were deleted but CPT entries weren't cleaned up.`,
+      };
+    }
     return { valid: true };
   }
 

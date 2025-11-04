@@ -7,6 +7,7 @@ import {
   type CPTEntry,
   validateCPTEntries,
   syncColumnOrderWithCptEntries,
+  deduplicateRootNodeEntries,
 } from "./shared/cptValidation";
 
 const cptEntryValidator = v.object({
@@ -145,10 +146,11 @@ export const update = mutation({
     if (args.y !== undefined) updates.y = args.y;
 
     if (args.cptEntries !== undefined) {
-      validateCPTEntriesOrThrow(args.cptEntries);
+      const cleanedEntries = deduplicateRootNodeEntries(args.cptEntries);
+      validateCPTEntriesOrThrow(cleanedEntries);
 
       const newParentIds = new Set<string>();
-      for (const entry of args.cptEntries) {
+      for (const entry of cleanedEntries) {
         Object.keys(entry.parentStates).forEach((id) => newParentIds.add(id));
       }
 
@@ -188,11 +190,11 @@ export const update = mutation({
         }
       }
 
-      updates.cptEntries = args.cptEntries;
+      updates.cptEntries = cleanedEntries;
 
       if (args.columnOrder === undefined) {
         updates.columnOrder = syncColumnOrderWithCptEntries(
-          args.cptEntries,
+          cleanedEntries,
           node.columnOrder,
         );
       } else {

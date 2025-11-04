@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { CPTEntry } from "../../convex/shared/cptValidation";
 import { validateCPTEntries } from "../../convex/shared/cptValidation";
+import { formatProbability, formatProbabilityAsPercentage } from "@/lib/formatProbability";
 
 interface CPTEditorProps {
   cptEntries: CPTEntry[];
@@ -337,7 +338,7 @@ export function CPTEditor({
             <span className="label-text">Base Probability</span>
           </label>
           <p className="text-lg font-semibold">
-            {(probability * 100).toFixed(1)}% ({probability.toFixed(2)})
+            {formatProbabilityAsPercentage(probability)} ({formatProbability(probability)})
           </p>
           <span className="label-text-alt opacity-70">
             Prior probability (no parents)
@@ -403,7 +404,7 @@ export function CPTEditor({
                     );
                   })}
                   <td className="font-semibold">
-                    {(entry.probability * 100).toFixed(1)}%
+                    {formatProbabilityAsPercentage(entry.probability)}
                   </td>
                 </tr>
               ))}

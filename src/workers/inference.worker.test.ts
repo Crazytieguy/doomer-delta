@@ -676,4 +676,35 @@ describe("Bayesian Inference", () => {
       }).toThrow(/references parent.*which is not in the node array/);
     });
   });
+
+  describe("Duplicate wildcard entries (root nodes)", () => {
+    it("uses first wildcard entry when multiple exist", () => {
+      const node = createNode("A", [
+        { parentStates: {}, probability: 0.7 },
+        { parentStates: {}, probability: 0.4 },
+        { parentStates: {}, probability: 0.9 },
+      ]);
+
+      const probs = computeMarginalProbabilities([node]);
+
+      expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(0.7, SAMPLING_PRECISION);
+    });
+
+    it("handles duplicate wildcards in chain correctly", () => {
+      const nodeA = createNode("A", [
+        { parentStates: {}, probability: 0.6 },
+        { parentStates: {}, probability: 0.3 },
+      ]);
+
+      const nodeB = createNode("B", [
+        { parentStates: { A: true }, probability: 0.8 },
+        { parentStates: { A: false }, probability: 0.2 },
+      ]);
+
+      const probs = computeMarginalProbabilities([nodeA, nodeB]);
+
+      expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(0.6, SAMPLING_PRECISION);
+      expect(probs.get("B" as Id<"nodes">)).toBeCloseTo(0.56, SAMPLING_PRECISION);
+    });
+  });
 });

@@ -3,6 +3,7 @@ import { TrendingUp, Loader2 } from "lucide-react";
 import type { Id } from "../../convex/_generated/dataModel";
 import { useInferenceWorker } from "@/hooks/useInferenceWorker";
 import { computeProbabilisticFingerprint } from "@/lib/probabilisticFingerprint";
+import { formatProbabilityAsPercentage } from "@/lib/formatProbability";
 
 interface Node {
   _id: Id<"nodes">;
@@ -127,8 +128,8 @@ export function SensitivityPanel({
                 <span
                   className={`text-xs font-semibold tabular-nums ${isPositive ? "text-success" : "text-error"}`}
                 >
-                  {sensitivity >= 0 ? "+" : ""}
-                  {sensitivity.toFixed(3)}
+                  {formatProbabilityAsPercentage(Math.abs(sensitivity))
+                    .replace(/^/, sensitivity >= 0 ? "+" : "-")}
                 </span>
               </div>
               <div className="w-full bg-base-300/40 rounded-full h-2">

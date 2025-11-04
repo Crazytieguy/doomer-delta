@@ -62,7 +62,9 @@ function buildCPTIndex(node: WorkerNode): CPTIndex {
     }
 
     if (specificity === 0) {
-      wildcardProbability = entry.probability;
+      if (wildcardProbability === undefined) {
+        wildcardProbability = entry.probability;
+      }
     } else {
       entries.push({ pattern, mask, specificity, probability: entry.probability });
     }
