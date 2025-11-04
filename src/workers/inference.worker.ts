@@ -204,25 +204,99 @@ function sumOut(factor: Factor, variable: Id<"nodes">): Factor {
   return { scope: newScope, table };
 }
 
+function computeEliminationOrder(
+  factors: Factor[],
+  queryVars: Set<Id<"nodes">>,
+): Id<"nodes">[] {
+  const neighbors = new Map<Id<"nodes">, Set<Id<"nodes">>>();
+  const allVars = new Set<Id<"nodes">>();
+
+  for (const factor of factors) {
+    for (const v of factor.scope) {
+      allVars.add(v);
+      if (!neighbors.has(v)) {
+        neighbors.set(v, new Set());
+      }
+    }
+
+    for (const v1 of factor.scope) {
+      for (const v2 of factor.scope) {
+        if (v1 !== v2) {
+          neighbors.get(v1)!.add(v2);
+        }
+      }
+    }
+  }
+
+  const eliminationOrder: Id<"nodes">[] = [];
+  const eliminated = new Set<Id<"nodes">>();
+
+  const toEliminate = new Set<Id<"nodes">>();
+  for (const v of allVars) {
+    if (!queryVars.has(v)) {
+      toEliminate.add(v);
+    }
+  }
+
+  while (toEliminate.size > 0) {
+    let bestVar: Id<"nodes"> | null = null;
+    let bestFill = Infinity;
+    let bestDegree = Infinity;
+    let bestActiveNeighbors: Id<"nodes">[] = [];
+
+    for (const v of toEliminate) {
+      const neighborSet = neighbors.get(v)!;
+      const activeNeighbors = Array.from(neighborSet).filter(
+        (n) => !eliminated.has(n),
+      );
+
+      let fill = 0;
+      for (let i = 0; i < activeNeighbors.length; i++) {
+        for (let j = i + 1; j < activeNeighbors.length; j++) {
+          const n1 = activeNeighbors[i];
+          const n2 = activeNeighbors[j];
+          if (!neighbors.get(n1)?.has(n2)) {
+            fill++;
+          }
+        }
+      }
+
+      if (
+        fill < bestFill ||
+        (fill === bestFill && activeNeighbors.length < bestDegree)
+      ) {
+        bestVar = v;
+        bestFill = fill;
+        bestDegree = activeNeighbors.length;
+        bestActiveNeighbors = activeNeighbors;
+      }
+    }
+
+    if (bestVar === null) break;
+
+    eliminationOrder.push(bestVar);
+    eliminated.add(bestVar);
+    toEliminate.delete(bestVar);
+
+    for (let i = 0; i < bestActiveNeighbors.length; i++) {
+      for (let j = i + 1; j < bestActiveNeighbors.length; j++) {
+        const n1: Id<"nodes"> = bestActiveNeighbors[i];
+        const n2: Id<"nodes"> = bestActiveNeighbors[j];
+        neighbors.get(n1)!.add(n2);
+        neighbors.get(n2)!.add(n1);
+      }
+    }
+  }
+
+  return eliminationOrder;
+}
+
 function eliminateAllExcept(
   factors: Factor[],
   queryVars: Id<"nodes">[],
 ): Factor {
-  const allVars = new Set<Id<"nodes">>();
-  for (const factor of factors) {
-    for (const v of factor.scope) {
-      allVars.add(v);
-    }
-  }
-
   const querySet = new Set(queryVars);
-  const eliminationOrder: Id<"nodes">[] = [];
-
-  for (const v of allVars) {
-    if (!querySet.has(v)) {
-      eliminationOrder.push(v);
-    }
-  }
+  const eliminationOrder = computeEliminationOrder(factors, querySet);
 
   let currentFactors = [...factors];
 
@@ -279,14 +353,7 @@ function computeAllMarginalsOptimized(
 ): Map<Id<"nodes">, number> {
   const probabilities = new Map<Id<"nodes">, number>();
 
-  const allVars = new Set<Id<"nodes">>();
-  for (const factor of factors) {
-    for (const v of factor.scope) {
-      allVars.add(v);
-    }
-  }
-
-  const eliminationOrder = Array.from(allVars);
+  const eliminationOrder = computeEliminationOrder(factors, new Set());
   let currentFactors = [...factors];
 
   for (const variable of eliminationOrder) {
@@ -420,20 +487,18 @@ function computeSensitivityIncremental(
     const ancestorIndex = nodes.findIndex((n) => n._id === ancestorId);
     if (ancestorIndex === -1) continue;
 
-    const factorsTrue = [...baselineFactors];
-    factorsTrue[ancestorIndex] = buildInterventionFactor(ancestorId, 1.0);
+    const interventionFactors = [...baselineFactors];
 
+    interventionFactors[ancestorIndex] = buildInterventionFactor(ancestorId, 1.0);
     const probsTrue = computeMarginalProbabilities(nodes, {
       targetNodeId,
-      prebuiltFactors: factorsTrue,
+      prebuiltFactors: interventionFactors,
     });
 
-    const factorsFalse = [...baselineFactors];
-    factorsFalse[ancestorIndex] = buildInterventionFactor(ancestorId, 0.0);
-
+    interventionFactors[ancestorIndex] = buildInterventionFactor(ancestorId, 0.0);
     const probsFalse = computeMarginalProbabilities(nodes, {
       targetNodeId,
-      prebuiltFactors: factorsFalse,
+      prebuiltFactors: interventionFactors,
     });
 
     const targetTrue = probsTrue.get(targetNodeId) ?? 0.5;
