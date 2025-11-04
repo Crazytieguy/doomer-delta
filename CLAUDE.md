@@ -29,7 +29,7 @@ Always follow the guidelines in this file, unless explicitly told otherwise by t
 
 - Before pushing:
   - Check background process output for Convex backend errors.
-  - Run `pnpm lint` and `pnpm test:e2e`
+  - Run `pnpm test:unit`, `pnpm lint`, and `pnpm test:e2e`
   - Review with `git diff origin/main` (or whatever branch makes sense)
 - Manual testing: Test UI with Playwright MCP (`mcp__playwright__browser_*`) before writing e2e tests
   - The playwright mcp server is unreliable, if it doesn't work ask the user to test manually
