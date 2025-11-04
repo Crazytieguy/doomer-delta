@@ -370,17 +370,15 @@ function computeAllMarginalsOptimized(
 
     if (relevant.length === 0) continue;
 
-    let product = relevant[0];
-    for (let i = 1; i < relevant.length; i++) {
-      product = factorProduct(product, relevant[i]);
+    let fullJoint = currentFactors[0];
+    for (let i = 1; i < currentFactors.length; i++) {
+      fullJoint = factorProduct(fullJoint, currentFactors[i]);
     }
-
-    const marginalFactor = sumOut(product, variable);
 
     let probTrue = 0;
     let probFalse = 0;
 
-    for (const [key, value] of product.table.entries()) {
+    for (const [key, value] of fullJoint.table.entries()) {
       const assignment = deserializeAssignment(key);
       if (assignment.get(variable) === true) {
         probTrue += value;
@@ -392,6 +390,13 @@ function computeAllMarginalsOptimized(
     const total = probTrue + probFalse;
     const normalized = total > Number.EPSILON ? probTrue / total : 0.5;
     probabilities.set(variable, normalized);
+
+    let product = relevant[0];
+    for (let i = 1; i < relevant.length; i++) {
+      product = factorProduct(product, relevant[i]);
+    }
+
+    const marginalFactor = sumOut(product, variable);
 
     currentFactors = [...irrelevant, marginalFactor];
   }

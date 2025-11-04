@@ -143,19 +143,207 @@ describe("Bayesian Inference", () => {
     });
   });
 
-  describe("Regression: min-fill bug with unweighted priors", () => {
-    it("computes weighted marginals even when child eliminated before parent", () => {
-      const nodeA = createNode("node_a", [{ parentStates: {}, probability: 0.6 }]);
+  describe("Varied node ID orders", () => {
+    it("handles parent with lexicographically later ID", () => {
+      const nodeZ = createNode("zzz_parent", [{ parentStates: {}, probability: 0.3 }]);
 
-      const nodeB = createNode("node_b", [
-        { parentStates: { node_a: true }, probability: 0.8 },
-        { parentStates: { node_a: false }, probability: 0.2 },
+      const nodeA = createNode("aaa_child", [
+        { parentStates: { zzz_parent: true }, probability: 0.9 },
+        { parentStates: { zzz_parent: false }, probability: 0.1 },
+      ]);
+
+      const probs = computeMarginalProbabilities([nodeZ, nodeA]);
+
+      expect(probs.get("zzz_parent" as Id<"nodes">)).toBeCloseTo(0.3, 5);
+      expect(probs.get("aaa_child" as Id<"nodes">)).toBeCloseTo(0.34, 5);
+    });
+
+    it("handles varied ID ordering in chain", () => {
+      const nodeM = createNode("m_middle", [{ parentStates: {}, probability: 0.4 }]);
+
+      const nodeZ = createNode("z_end", [
+        { parentStates: { m_middle: true }, probability: 0.7 },
+        { parentStates: { m_middle: false }, probability: 0.3 },
+      ]);
+
+      const probs = computeMarginalProbabilities([nodeM, nodeZ]);
+
+      expect(probs.get("m_middle" as Id<"nodes">)).toBeCloseTo(0.4, 5);
+
+      const expectedZ = 0.4 * 0.7 + 0.6 * 0.3;
+      expect(probs.get("z_end" as Id<"nodes">)).toBeCloseTo(expectedZ, 5);
+    });
+
+    it("handles complex network with mixed ID ordering", () => {
+      const node1 = createNode("node_1", [{ parentStates: {}, probability: 0.25 }]);
+      const node9 = createNode("node_9", [{ parentStates: {}, probability: 0.75 }]);
+
+      const node5 = createNode("node_5", [
+        { parentStates: { node_1: true, node_9: true }, probability: 0.85 },
+        { parentStates: { node_1: true, node_9: false }, probability: 0.15 },
+        { parentStates: { node_1: false, node_9: true }, probability: 0.45 },
+        { parentStates: { node_1: false, node_9: false }, probability: 0.05 },
+      ]);
+
+      const probs = computeMarginalProbabilities([node1, node9, node5]);
+
+      expect(probs.get("node_1" as Id<"nodes">)).toBeCloseTo(0.25, 5);
+      expect(probs.get("node_9" as Id<"nodes">)).toBeCloseTo(0.75, 5);
+
+      const expected5 =
+        0.25 * 0.75 * 0.85 +
+        0.25 * 0.25 * 0.15 +
+        0.75 * 0.75 * 0.45 +
+        0.75 * 0.25 * 0.05;
+      expect(probs.get("node_5" as Id<"nodes">)).toBeCloseTo(expected5, 5);
+    });
+  });
+
+  describe("Asymmetric probabilities", () => {
+    it("handles highly skewed parent prior with balanced CPT", () => {
+      const nodeA = createNode("A", [{ parentStates: {}, probability: 0.1 }]);
+
+      const nodeB = createNode("B", [
+        { parentStates: { A: true }, probability: 0.5 },
+        { parentStates: { A: false }, probability: 0.5 },
       ]);
 
       const probs = computeMarginalProbabilities([nodeA, nodeB]);
 
-      expect(probs.get("node_a" as Id<"nodes">)).toBeCloseTo(0.6, 5);
-      expect(probs.get("node_b" as Id<"nodes">)).toBeCloseTo(0.56, 5);
+      expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(0.1, 5);
+      expect(probs.get("B" as Id<"nodes">)).toBeCloseTo(0.5, 5);
+    });
+
+    it("handles balanced parent with highly skewed CPT", () => {
+      const nodeA = createNode("A", [{ parentStates: {}, probability: 0.5 }]);
+
+      const nodeB = createNode("B", [
+        { parentStates: { A: true }, probability: 0.99 },
+        { parentStates: { A: false }, probability: 0.01 },
+      ]);
+
+      const probs = computeMarginalProbabilities([nodeA, nodeB]);
+
+      expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(0.5, 5);
+      expect(probs.get("B" as Id<"nodes">)).toBeCloseTo(0.5, 5);
+    });
+
+    it("handles both parent and CPT highly skewed in same direction", () => {
+      const nodeA = createNode("A", [{ parentStates: {}, probability: 0.9 }]);
+
+      const nodeB = createNode("B", [
+        { parentStates: { A: true }, probability: 0.95 },
+        { parentStates: { A: false }, probability: 0.05 },
+      ]);
+
+      const probs = computeMarginalProbabilities([nodeA, nodeB]);
+
+      expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(0.9, 5);
+
+      const expectedB = 0.9 * 0.95 + 0.1 * 0.05;
+      expect(probs.get("B" as Id<"nodes">)).toBeCloseTo(expectedB, 5);
+    });
+  });
+
+  describe("Deep chains", () => {
+    it("handles 5-node chain", () => {
+      const node1 = createNode("n1", [{ parentStates: {}, probability: 0.8 }]);
+      const node2 = createNode("n2", [
+        { parentStates: { n1: true }, probability: 0.7 },
+        { parentStates: { n1: false }, probability: 0.3 },
+      ]);
+      const node3 = createNode("n3", [
+        { parentStates: { n2: true }, probability: 0.6 },
+        { parentStates: { n2: false }, probability: 0.4 },
+      ]);
+      const node4 = createNode("n4", [
+        { parentStates: { n3: true }, probability: 0.9 },
+        { parentStates: { n3: false }, probability: 0.1 },
+      ]);
+      const node5 = createNode("n5", [
+        { parentStates: { n4: true }, probability: 0.85 },
+        { parentStates: { n4: false }, probability: 0.15 },
+      ]);
+
+      const probs = computeMarginalProbabilities([node1, node2, node3, node4, node5]);
+
+      expect(probs.get("n1" as Id<"nodes">)).toBeCloseTo(0.8, 5);
+
+      const p2 = 0.8 * 0.7 + 0.2 * 0.3;
+      expect(probs.get("n2" as Id<"nodes">)).toBeCloseTo(p2, 5);
+
+      const p3 = p2 * 0.6 + (1 - p2) * 0.4;
+      expect(probs.get("n3" as Id<"nodes">)).toBeCloseTo(p3, 5);
+
+      const p4 = p3 * 0.9 + (1 - p3) * 0.1;
+      expect(probs.get("n4" as Id<"nodes">)).toBeCloseTo(p4, 5);
+
+      const p5 = p4 * 0.85 + (1 - p4) * 0.15;
+      expect(probs.get("n5" as Id<"nodes">)).toBeCloseTo(p5, 5);
+    });
+  });
+
+  describe("Multiple children forcing child-first elimination", () => {
+    it("handles parent with 3 children (should eliminate children first)", () => {
+      const parent = createNode("p", [{ parentStates: {}, probability: 0.7 }]);
+
+      const child1 = createNode("c1", [
+        { parentStates: { p: true }, probability: 0.8 },
+        { parentStates: { p: false }, probability: 0.2 },
+      ]);
+
+      const child2 = createNode("c2", [
+        { parentStates: { p: true }, probability: 0.9 },
+        { parentStates: { p: false }, probability: 0.1 },
+      ]);
+
+      const child3 = createNode("c3", [
+        { parentStates: { p: true }, probability: 0.6 },
+        { parentStates: { p: false }, probability: 0.4 },
+      ]);
+
+      const probs = computeMarginalProbabilities([parent, child1, child2, child3]);
+
+      expect(probs.get("p" as Id<"nodes">)).toBeCloseTo(0.7, 5);
+      expect(probs.get("c1" as Id<"nodes">)).toBeCloseTo(0.62, 5);
+      expect(probs.get("c2" as Id<"nodes">)).toBeCloseTo(0.66, 5);
+      expect(probs.get("c3" as Id<"nodes">)).toBeCloseTo(0.54, 5);
+    });
+  });
+
+  describe("Extreme probabilities to expose rounding", () => {
+    it("handles very small probabilities", () => {
+      const nodeA = createNode("A", [{ parentStates: {}, probability: 0.001 }]);
+
+      const nodeB = createNode("B", [
+        { parentStates: { A: true }, probability: 0.999 },
+        { parentStates: { A: false }, probability: 0.001 },
+      ]);
+
+      const probs = computeMarginalProbabilities([nodeA, nodeB]);
+
+      expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(0.001, 5);
+
+      const expectedB = 0.001 * 0.999 + 0.999 * 0.001;
+      expect(probs.get("B" as Id<"nodes">)).toBeCloseTo(expectedB, 5);
+    });
+
+    it("handles mix of very high and very low probabilities", () => {
+      const nodeA = createNode("A", [{ parentStates: {}, probability: 0.001 }]);
+      const nodeB = createNode("B", [{ parentStates: {}, probability: 0.999 }]);
+
+      const nodeC = createNode("C", [
+        { parentStates: { A: true, B: true }, probability: 0.5 },
+        { parentStates: { A: true, B: false }, probability: 0.5 },
+        { parentStates: { A: false, B: true }, probability: 0.5 },
+        { parentStates: { A: false, B: false }, probability: 0.5 },
+      ]);
+
+      const probs = computeMarginalProbabilities([nodeA, nodeB, nodeC]);
+
+      expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(0.001, 5);
+      expect(probs.get("B" as Id<"nodes">)).toBeCloseTo(0.999, 5);
+      expect(probs.get("C" as Id<"nodes">)).toBeCloseTo(0.5, 5);
     });
   });
 
