@@ -364,32 +364,34 @@ function computeAllMarginalsOptimized(
 
     if (relevant.length === 0) continue;
 
-    const relevantVars = new Set<Id<"nodes">>();
-    for (const f of relevant) {
+    const nodeToFactors = new Map<Id<"nodes">, Factor[]>();
+    for (const f of currentFactors) {
       for (const v of f.scope) {
-        relevantVars.add(v);
+        if (!nodeToFactors.has(v)) {
+          nodeToFactors.set(v, []);
+        }
+        nodeToFactors.get(v)!.push(f);
       }
     }
 
-    let prevSize = 0;
-    while (relevantVars.size > prevSize) {
-      prevSize = relevantVars.size;
-      for (const f of currentFactors) {
-        if (f.scope.some((v) => relevantVars.has(v))) {
-          for (const v of f.scope) {
-            relevantVars.add(v);
+    const visited = new Set<Factor>(relevant);
+    const queue: Factor[] = [...relevant];
+
+    let head = 0;
+    while (head < queue.length) {
+      const factor = queue[head++];
+      for (const varId of factor.scope) {
+        const neighbors = nodeToFactors.get(varId) || [];
+        for (const neighbor of neighbors) {
+          if (!visited.has(neighbor)) {
+            visited.add(neighbor);
+            queue.push(neighbor);
           }
         }
       }
     }
 
-    const neededForMarginal: Factor[] = [];
-    for (const f of currentFactors) {
-      const hasRelevantVar = f.scope.some((v) => relevantVars.has(v));
-      if (hasRelevantVar) {
-        neededForMarginal.push(f);
-      }
-    }
+    const neededForMarginal = Array.from(visited);
 
     let jointForMarginal = neededForMarginal[0];
     for (let i = 1; i < neededForMarginal.length; i++) {
