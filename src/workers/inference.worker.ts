@@ -370,15 +370,42 @@ function computeAllMarginalsOptimized(
 
     if (relevant.length === 0) continue;
 
-    let fullJoint = currentFactors[0];
-    for (let i = 1; i < currentFactors.length; i++) {
-      fullJoint = factorProduct(fullJoint, currentFactors[i]);
+    const relevantVars = new Set<Id<"nodes">>();
+    for (const f of relevant) {
+      for (const v of f.scope) {
+        relevantVars.add(v);
+      }
+    }
+
+    let prevSize = 0;
+    while (relevantVars.size > prevSize) {
+      prevSize = relevantVars.size;
+      for (const f of currentFactors) {
+        if (f.scope.some((v) => relevantVars.has(v))) {
+          for (const v of f.scope) {
+            relevantVars.add(v);
+          }
+        }
+      }
+    }
+
+    const neededForMarginal: Factor[] = [];
+    for (const f of currentFactors) {
+      const hasRelevantVar = f.scope.some((v) => relevantVars.has(v));
+      if (hasRelevantVar) {
+        neededForMarginal.push(f);
+      }
+    }
+
+    let jointForMarginal = neededForMarginal[0];
+    for (let i = 1; i < neededForMarginal.length; i++) {
+      jointForMarginal = factorProduct(jointForMarginal, neededForMarginal[i]);
     }
 
     let probTrue = 0;
     let probFalse = 0;
 
-    for (const [key, value] of fullJoint.table.entries()) {
+    for (const [key, value] of jointForMarginal.table.entries()) {
       const assignment = deserializeAssignment(key);
       if (assignment.get(variable) === true) {
         probTrue += value;
