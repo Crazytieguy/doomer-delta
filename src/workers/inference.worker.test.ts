@@ -420,6 +420,111 @@ describe("Bayesian Inference", () => {
       const pW = pZ * 0.75 + (1 - pZ) * 0.35;
       expect(probs.get("W" as Id<"nodes">)).toBeCloseTo(pW, 5);
     });
+
+    it("handles Y-structure (A→B→D, A→C→D) with random ordering", () => {
+      const nodeA = createNode("A", [{ parentStates: {}, probability: 0.3 }]);
+      const nodeB = createNode("B", [
+        { parentStates: { A: true }, probability: 0.8 },
+        { parentStates: { A: false }, probability: 0.2 },
+      ]);
+      const nodeC = createNode("C", [
+        { parentStates: { A: true }, probability: 0.7 },
+        { parentStates: { A: false }, probability: 0.4 },
+      ]);
+      const nodeD = createNode("D", [
+        { parentStates: { B: true, C: true }, probability: 0.9 },
+        { parentStates: { B: true, C: false }, probability: 0.6 },
+        { parentStates: { B: false, C: true }, probability: 0.5 },
+        { parentStates: { B: false, C: false }, probability: 0.1 },
+      ]);
+
+      const probs = computeMarginalProbabilities([nodeD, nodeB, nodeA, nodeC]);
+
+      expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(0.3, 5);
+
+      const pB = 0.3 * 0.8 + 0.7 * 0.2;
+      expect(probs.get("B" as Id<"nodes">)).toBeCloseTo(pB, 5);
+
+      const pC = 0.3 * 0.7 + 0.7 * 0.4;
+      expect(probs.get("C" as Id<"nodes">)).toBeCloseTo(pC, 5);
+
+      const pD =
+        0.3 * 0.8 * 0.7 * 0.9 +
+        0.3 * 0.8 * 0.3 * 0.6 +
+        0.3 * 0.2 * 0.7 * 0.5 +
+        0.3 * 0.2 * 0.3 * 0.1 +
+        0.7 * 0.2 * 0.4 * 0.9 +
+        0.7 * 0.2 * 0.6 * 0.6 +
+        0.7 * 0.8 * 0.4 * 0.5 +
+        0.7 * 0.8 * 0.6 * 0.1;
+      expect(probs.get("D" as Id<"nodes">)).toBeCloseTo(pD, 5);
+    });
+
+    it("handles deep chain (8 nodes) with random ordering", () => {
+      const n1 = createNode("n1", [{ parentStates: {}, probability: 0.1 }]);
+      const n2 = createNode("n2", [
+        { parentStates: { n1: true }, probability: 0.9 },
+        { parentStates: { n1: false }, probability: 0.2 },
+      ]);
+      const n3 = createNode("n3", [
+        { parentStates: { n2: true }, probability: 0.8 },
+        { parentStates: { n2: false }, probability: 0.3 },
+      ]);
+      const n4 = createNode("n4", [
+        { parentStates: { n3: true }, probability: 0.7 },
+        { parentStates: { n3: false }, probability: 0.4 },
+      ]);
+      const n5 = createNode("n5", [
+        { parentStates: { n4: true }, probability: 0.85 },
+        { parentStates: { n4: false }, probability: 0.15 },
+      ]);
+      const n6 = createNode("n6", [
+        { parentStates: { n5: true }, probability: 0.75 },
+        { parentStates: { n5: false }, probability: 0.25 },
+      ]);
+      const n7 = createNode("n7", [
+        { parentStates: { n6: true }, probability: 0.95 },
+        { parentStates: { n6: false }, probability: 0.35 },
+      ]);
+      const n8 = createNode("n8", [
+        { parentStates: { n7: true }, probability: 0.88 },
+        { parentStates: { n7: false }, probability: 0.22 },
+      ]);
+
+      const probs = computeMarginalProbabilities([
+        n5,
+        n8,
+        n2,
+        n6,
+        n1,
+        n4,
+        n7,
+        n3,
+      ]);
+
+      expect(probs.get("n1" as Id<"nodes">)).toBeCloseTo(0.1, 5);
+
+      const p2 = 0.1 * 0.9 + 0.9 * 0.2;
+      expect(probs.get("n2" as Id<"nodes">)).toBeCloseTo(p2, 5);
+
+      const p3 = p2 * 0.8 + (1 - p2) * 0.3;
+      expect(probs.get("n3" as Id<"nodes">)).toBeCloseTo(p3, 5);
+
+      const p4 = p3 * 0.7 + (1 - p3) * 0.4;
+      expect(probs.get("n4" as Id<"nodes">)).toBeCloseTo(p4, 5);
+
+      const p5 = p4 * 0.85 + (1 - p4) * 0.15;
+      expect(probs.get("n5" as Id<"nodes">)).toBeCloseTo(p5, 5);
+
+      const p6 = p5 * 0.75 + (1 - p5) * 0.25;
+      expect(probs.get("n6" as Id<"nodes">)).toBeCloseTo(p6, 5);
+
+      const p7 = p6 * 0.95 + (1 - p6) * 0.35;
+      expect(probs.get("n7" as Id<"nodes">)).toBeCloseTo(p7, 5);
+
+      const p8 = p7 * 0.88 + (1 - p7) * 0.22;
+      expect(probs.get("n8" as Id<"nodes">)).toBeCloseTo(p8, 5);
+    });
   });
 
   describe("Wildcard CPT entries", () => {
