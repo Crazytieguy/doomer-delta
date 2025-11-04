@@ -1,7 +1,8 @@
-import { computeMarginalProbabilities } from "@/lib/bayesianInference";
 import { useMutation } from "convex/react";
-import { Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useInferenceWorker } from "@/hooks/useInferenceWorker";
+import { computeProbabilisticFingerprint } from "@/lib/probabilisticFingerprint";
 import ReactFlow, {
   addEdge,
   Connection,
@@ -184,27 +185,18 @@ function GraphEditorInner({
     },
   );
 
-  const probabilisticFingerprint = useMemo(() => {
-    return dbNodes
-      .map((node) => {
-        const entriesStr = node.cptEntries
-          .map((entry) => {
-            const parentsStr = Object.keys(entry.parentStates)
-              .sort()
-              .map((pid) => `${pid}:${entry.parentStates[pid]}`)
-              .join(",");
-            return `${parentsStr}|${entry.probability}`;
-          })
-          .join(";");
-        return `${node._id}:${entriesStr}`;
-      })
-      .join("|");
-  }, [dbNodes]);
+  const { computeMarginals, marginalsState } = useInferenceWorker();
+  const dbNodesRef = useRef(dbNodes);
+  dbNodesRef.current = dbNodes;
 
-  const probabilities = useMemo(() => {
-    return computeMarginalProbabilities(dbNodes);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [probabilisticFingerprint]);
+  const probabilisticFingerprint = useMemo(
+    () => computeProbabilisticFingerprint(dbNodes),
+    [dbNodes]
+  );
+
+  useEffect(() => {
+    computeMarginals(dbNodesRef.current);
+  }, [probabilisticFingerprint, computeMarginals]);
 
   const initialNodes: FlowNode[] = dbNodes.map((node) => ({
     id: node._id,
@@ -213,7 +205,7 @@ function GraphEditorInner({
     selected: node._id === selectedNode,
     data: {
       label: node.title,
-      probability: probabilities.get(node._id),
+      probability: marginalsState.probabilities.get(node._id),
     },
   }));
 
@@ -253,7 +245,7 @@ function GraphEditorInner({
             selected: dbNode._id === selectedNode,
             data: {
               label: dbNode.title,
-              probability: probabilities.get(dbNode._id),
+              probability: marginalsState.probabilities.get(dbNode._id),
             },
           });
         }
@@ -263,7 +255,7 @@ function GraphEditorInner({
       updatedNodes = updatedNodes.map((node) => {
         const dbNode = dbNodes.find((n) => n._id === node.id);
         const nodeId = node.id as Id<"nodes">;
-        const probability = probabilities.get(nodeId);
+        const probability = marginalsState.probabilities.get(nodeId);
         const isSelected = nodeId === selectedNode;
         if (
           dbNode &&
@@ -296,7 +288,7 @@ function GraphEditorInner({
       }));
     });
     setEdges(newEdges);
-  }, [dbNodes, probabilities, selectedNode, setNodes, setEdges]);
+  }, [dbNodes, marginalsState.probabilities, selectedNode, setNodes, setEdges]);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -507,6 +499,14 @@ function GraphEditorInner({
             className="bg-base-100/90 backdrop-blur-sm border border-base-300/50 px-3 py-2 rounded-lg shadow-sm text-sm"
           >
             Double-click canvas to create node
+          </Panel>
+        )}
+        {marginalsState.isLoading && (
+          <Panel
+            position="top-right"
+            className="bg-base-100/90 backdrop-blur-sm border border-base-300/50 px-3 py-2 rounded-lg shadow-sm"
+          >
+            <Loader2 className="w-4 h-4 animate-spin opacity-60" />
           </Panel>
         )}
       </ReactFlow>

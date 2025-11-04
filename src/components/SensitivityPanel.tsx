@@ -1,7 +1,8 @@
-import { useMemo } from "react";
-import { TrendingUp } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { TrendingUp, Loader2 } from "lucide-react";
 import type { Id } from "../../convex/_generated/dataModel";
-import { computeSensitivity } from "@/lib/bayesianInference";
+import { useInferenceWorker } from "@/hooks/useInferenceWorker";
+import { computeProbabilisticFingerprint } from "@/lib/probabilisticFingerprint";
 
 interface Node {
   _id: Id<"nodes">;
@@ -26,11 +27,24 @@ export function SensitivityPanel({
   nodes,
   targetNodeId,
 }: SensitivityPanelProps) {
-  const sensitivities = useMemo(() => {
-    const sensitivityMap = computeSensitivity(nodes, targetNodeId);
+  const { computeSensitivity, sensitivityState } = useInferenceWorker();
+  const nodesRef = useRef(nodes);
+  const [hasInitialized, setHasInitialized] = useState(false);
+  nodesRef.current = nodes;
 
-    const results = Array.from(sensitivityMap.entries())
-      .map(([nodeId, sensitivity]) => {
+  const probabilisticFingerprint = useMemo(
+    () => computeProbabilisticFingerprint(nodes),
+    [nodes]
+  );
+
+  useEffect(() => {
+    computeSensitivity(nodesRef.current, targetNodeId);
+    setHasInitialized(true);
+  }, [probabilisticFingerprint, targetNodeId, computeSensitivity]);
+
+  const sensitivities = useMemo(() => {
+    return sensitivityState.results
+      .map(({ nodeId, sensitivity }) => {
         const node = nodes.find((n) => n._id === nodeId);
         return {
           nodeId,
@@ -39,15 +53,55 @@ export function SensitivityPanel({
         };
       })
       .sort((a, b) => Math.abs(b.sensitivity) - Math.abs(a.sensitivity));
+  }, [sensitivityState.results, nodes]);
 
-    return results;
-  }, [nodes, targetNodeId]);
+  if (sensitivityState.error) {
+    return (
+      <div className="text-sm text-error">
+        Error: {sensitivityState.error}
+      </div>
+    );
+  }
 
-  if (sensitivities.length === 0) {
+  if (!hasInitialized) {
+    return null;
+  }
+
+  if (!sensitivityState.isLoading && sensitivities.length === 0) {
     return (
       <div className="text-sm opacity-70">
         This node has no parent nodes, so its probability is independent and not
         affected by other nodes in the network.
+      </div>
+    );
+  }
+
+  if (sensitivityState.isLoading) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 mb-2">
+          <TrendingUp className="w-4 h-4 opacity-75" />
+          <h4 className="font-semibold text-sm">Sensitivity Analysis</h4>
+          <Loader2 className="w-3 h-3 animate-spin opacity-60" />
+        </div>
+        <p className="text-xs opacity-60 mb-4">
+          How each parent influences this node's probability
+        </p>
+        <div className="mb-4">
+          <div className="w-full bg-base-300/40 rounded-full h-2">
+            <div
+              className="bg-primary h-2 rounded-full transition-all duration-300"
+              style={{
+                width: `${sensitivityState.total > 0 ? (sensitivityState.progress / sensitivityState.total) * 100 : 0}%`
+              }}
+            />
+          </div>
+          {sensitivityState.total > 0 && (
+            <p className="text-xs opacity-50 mt-2 text-center">
+              Computing {sensitivityState.progress} of {sensitivityState.total}
+            </p>
+          )}
+        </div>
       </div>
     );
   }
@@ -61,6 +115,7 @@ export function SensitivityPanel({
       <p className="text-xs opacity-60 mb-4">
         How each parent influences this node's probability
       </p>
+
       <div className="space-y-3">
         {sensitivities.map(({ nodeId, nodeName, sensitivity }) => {
           const isPositive = sensitivity >= 0;
