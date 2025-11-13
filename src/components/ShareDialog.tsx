@@ -144,7 +144,7 @@ export function ShareDialog({ modelId }: ShareDialogProps) {
                       </div>
                     </div>
                     <button
-                      onClick={() => handleUnshare(user._id)}
+                      onClick={() => void handleUnshare(user._id)}
                       className="btn btn-ghost btn-sm btn-circle ml-2"
                       aria-label="Remove access"
                     >
