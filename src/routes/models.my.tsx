@@ -7,11 +7,15 @@ import { api } from "../../convex/_generated/api";
 import { useToast } from "../components/ToastContext";
 
 const modelsQueryOptions = convexQuery(api.models.listMyModels, {});
+const sharedModelsQueryOptions = convexQuery(api.models.listSharedWithMe, {});
 
 export const Route = createFileRoute("/models/my")({
   loader: async ({ context: { queryClient } }) => {
     if ((window as any).Clerk?.session) {
-      await queryClient.ensureQueryData(modelsQueryOptions);
+      await Promise.all([
+        queryClient.ensureQueryData(modelsQueryOptions),
+        queryClient.ensureQueryData(sharedModelsQueryOptions),
+      ]);
     }
   },
   component: MyModelsPage,
@@ -19,6 +23,7 @@ export const Route = createFileRoute("/models/my")({
 
 function MyModelsPage() {
   const { data: models } = useSuspenseQuery(modelsQueryOptions);
+  const { data: sharedModels } = useSuspenseQuery(sharedModelsQueryOptions);
   const createModel = useMutation(api.models.create);
   const { showError, showSuccess } = useToast();
 
@@ -79,6 +84,37 @@ function MyModelsPage() {
               </div>
             </Link>
           ))}
+        </div>
+      )}
+
+      {sharedModels.length > 0 && (
+        <div className="mt-12">
+          <h2 className="text-2xl font-bold mb-4">Shared with You</h2>
+          <div className="not-prose grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {sharedModels.map((model) => (
+              <Link
+                key={model._id}
+                to="/models/$modelId"
+                params={{ modelId: model._id }}
+                className="card card-border bg-gradient-to-br from-base-200 via-base-200 to-accent/5 hover:shadow-lg transition-shadow duration-300"
+              >
+                <div className="card-body">
+                  <div className="flex justify-between items-start gap-2">
+                    <h3 className="card-title flex-1">{model.name}</h3>
+                    <span className="badge badge-accent gap-1 whitespace-nowrap">
+                      Shared
+                    </span>
+                  </div>
+                  {model.description && (
+                    <p className="text-sm opacity-70">{model.description}</p>
+                  )}
+                  <div className="text-xs opacity-50 mt-2">
+                    Shared by {model.ownerName}
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
         </div>
       )}
     </div>

@@ -8,6 +8,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { GraphEditor, NodeInspector } from "../components/GraphEditor";
+import { ShareDialog } from "../components/ShareDialog";
 import { useToast } from "../components/ToastContext";
 
 const modelQueryOptions = (modelId: Id<"models">) =>
@@ -54,7 +55,23 @@ function ModelDetailPage() {
 
   const updateNode = useMutation(api.nodes.update);
   const deleteNode = useMutation(api.nodes.remove);
-  const togglePublic = useMutation(api.models.togglePublic);
+  const togglePublic = useMutation(api.models.togglePublic).withOptimisticUpdate(
+    (localStore, args) => {
+      const currentModel = localStore.getQuery(api.models.get, {
+        id: args.id,
+      });
+      if (currentModel) {
+        localStore.setQuery(
+          api.models.get,
+          { id: args.id },
+          {
+            ...currentModel,
+            isPublic: !currentModel.isPublic,
+          },
+        );
+      }
+    },
+  );
   const cloneModel = useMutation(api.models.clone);
   const updateModel = useMutation(api.models.update).withOptimisticUpdate(
     (localStore, args) => {
@@ -177,20 +194,30 @@ function ModelDetailPage() {
         {isReadOnly ? (
           <>
             <div className="flex gap-4 items-start justify-between mb-2">
-              <h1 className="text-4xl font-bold mt-0 mb-0">{modelName}</h1>
+              <div className="flex items-baseline gap-3">
+                <h1 className="text-4xl font-bold mt-0 mb-0">{modelName}</h1>
+                {!isOwner && !model.isPublic && (
+                  <span className="badge badge-accent">Shared with you</span>
+                )}
+              </div>
               <div className="not-prose flex gap-2 shrink-0">
                 {isOwner && (
-                  <button
-                    className="btn btn-sm btn-accent"
-                    onClick={() => void handleTogglePublic()}
-                  >
-                    {model.isPublic ? (
-                      <GlobeLock className="w-4 h-4" />
-                    ) : (
-                      <Globe className="w-4 h-4" />
+                  <>
+                    <button
+                      className="btn btn-sm btn-accent"
+                      onClick={() => void handleTogglePublic()}
+                    >
+                      {model.isPublic ? (
+                        <GlobeLock className="w-4 h-4" />
+                      ) : (
+                        <Globe className="w-4 h-4" />
+                      )}
+                      {model.isPublic ? "Make Private" : "Make Public"}
+                    </button>
+                    {!model.isPublic && (
+                      <ShareDialog modelId={modelId as Id<"models">} />
                     )}
-                    {model.isPublic ? "Make Private" : "Make Public"}
-                  </button>
+                  </>
                 )}
                 <button
                   className="btn btn-sm btn-outline"
@@ -240,17 +267,22 @@ function ModelDetailPage() {
               />
               <div className="not-prose flex gap-2 shrink-0">
                 {isOwner && (
-                  <button
-                    className="btn btn-sm btn-accent"
-                    onClick={() => void handleTogglePublic()}
-                  >
-                    {model.isPublic ? (
-                      <GlobeLock className="w-4 h-4" />
-                    ) : (
-                      <Globe className="w-4 h-4" />
+                  <>
+                    <button
+                      className="btn btn-sm btn-accent"
+                      onClick={() => void handleTogglePublic()}
+                    >
+                      {model.isPublic ? (
+                        <GlobeLock className="w-4 h-4" />
+                      ) : (
+                        <Globe className="w-4 h-4" />
+                      )}
+                      {model.isPublic ? "Make Private" : "Make Public"}
+                    </button>
+                    {!model.isPublic && (
+                      <ShareDialog modelId={modelId as Id<"models">} />
                     )}
-                    {model.isPublic ? "Make Private" : "Make Public"}
-                  </button>
+                  </>
                 )}
                 <button
                   className="btn btn-sm btn-outline"

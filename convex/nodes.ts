@@ -76,14 +76,29 @@ export const listByModel = query({
         : [];
     }
 
-    if (model.ownerId !== user._id && !model.isPublic) {
-      return [];
+    const isOwner = model.ownerId === user._id;
+    if (isOwner || model.isPublic) {
+      return await ctx.db
+        .query("nodes")
+        .withIndex("by_modelId", (q) => q.eq("modelId", args.modelId))
+        .collect();
     }
 
-    return await ctx.db
-      .query("nodes")
-      .withIndex("by_modelId", (q) => q.eq("modelId", args.modelId))
-      .collect();
+    const share = await ctx.db
+      .query("modelShares")
+      .withIndex("by_modelId_userId", (q) =>
+        q.eq("modelId", args.modelId).eq("userId", user._id),
+      )
+      .unique();
+
+    if (share) {
+      return await ctx.db
+        .query("nodes")
+        .withIndex("by_modelId", (q) => q.eq("modelId", args.modelId))
+        .collect();
+    }
+
+    return [];
   },
 });
 

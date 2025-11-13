@@ -5,7 +5,10 @@ export default defineSchema({
   users: defineTable({
     clerkId: v.string(),
     name: v.optional(v.string()),
-  }).index("by_clerkId", ["clerkId"]),
+    email: v.optional(v.string()),
+  })
+    .index("by_clerkId", ["clerkId"])
+    .index("by_email", ["email"]),
 
   models: defineTable({
     name: v.string(),
@@ -31,4 +34,11 @@ export default defineSchema({
     ),
     columnOrder: v.optional(v.array(v.id("nodes"))),
   }).index("by_modelId", ["modelId"]),
+
+  modelShares: defineTable({
+    modelId: v.id("models"),
+    userId: v.id("users"),
+  })
+    .index("by_modelId_userId", ["modelId", "userId"])
+    .index("by_userId", ["userId"]),
 });

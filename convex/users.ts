@@ -37,8 +37,12 @@ async function ensureUserExists(ctx: MutationCtx) {
     const userId = await ctx.db.insert("users", {
       clerkId: identity.subject,
       name: identity.name ?? undefined,
+      email: identity.email ?? undefined,
     });
     user = await ctx.db.get(userId);
+  } else if (!user.email && identity.email) {
+    await ctx.db.patch(user._id, { email: identity.email });
+    user = await ctx.db.get(user._id);
   }
 
   return user;

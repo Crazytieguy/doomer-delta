@@ -2,8 +2,12 @@ import { v, ConvexError } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { paginationOptsValidator } from "convex/server";
 import { getCurrentUserOrNull, getCurrentUserOrCrash } from "./users";
-import type { Id } from "./_generated/dataModel";
+import type { Id, Doc } from "./_generated/dataModel";
 import { syncColumnOrderWithCptEntries } from "./shared/cptValidation";
+
+function getUserDisplayName(user: Doc<"users"> | null): string {
+  return user?.name ?? user?.email ?? "Unknown";
+}
 
 export const listMyModels = query({
   args: {},
@@ -33,7 +37,7 @@ export const listPublic = query({
         const owner = await ctx.db.get(model.ownerId);
         return {
           ...model,
-          ownerName: owner?.name ?? "Unknown",
+          ownerName: getUserDisplayName(owner),
         };
       }),
     );
@@ -59,7 +63,7 @@ export const listPublicInitial = query({
         const owner = await ctx.db.get(model.ownerId);
         return {
           ...model,
-          ownerName: owner?.name ?? "Unknown",
+          ownerName: getUserDisplayName(owner),
         };
       }),
     );
@@ -79,14 +83,23 @@ export const get = query({
       return model.isPublic ? { ...model, isOwner: false } : null;
     }
 
-    if (model.ownerId !== user._id && !model.isPublic) {
-      return null;
+    const isOwner = model.ownerId === user._id;
+    if (isOwner || model.isPublic) {
+      return { ...model, isOwner };
     }
 
-    return {
-      ...model,
-      isOwner: model.ownerId === user._id,
-    };
+    const share = await ctx.db
+      .query("modelShares")
+      .withIndex("by_modelId_userId", (q) =>
+        q.eq("modelId", args.id).eq("userId", user._id),
+      )
+      .unique();
+
+    if (share) {
+      return { ...model, isOwner: false };
+    }
+
+    return null;
   },
 });
 
@@ -179,6 +192,15 @@ export const remove = mutation({
       await ctx.db.delete(node._id);
     }
 
+    const shares = await ctx.db
+      .query("modelShares")
+      .withIndex("by_modelId_userId", (q) => q.eq("modelId", args.id))
+      .collect();
+
+    for (const share of shares) {
+      await ctx.db.delete(share._id);
+    }
+
     await ctx.db.delete(args.id);
   },
 });
@@ -190,8 +212,19 @@ export const clone = mutation({
     if (!model) throw new ConvexError("Model not found");
 
     const user = await getCurrentUserOrCrash(ctx);
-    if (model.ownerId !== user._id && !model.isPublic) {
-      throw new ConvexError("Not authorized");
+    const isOwner = model.ownerId === user._id;
+
+    if (!isOwner && !model.isPublic) {
+      const share = await ctx.db
+        .query("modelShares")
+        .withIndex("by_modelId_userId", (q) =>
+          q.eq("modelId", args.id).eq("userId", user._id),
+        )
+        .unique();
+
+      if (!share) {
+        throw new ConvexError("Not authorized");
+      }
     }
 
     const newModelId = await ctx.db.insert("models", {
@@ -273,5 +306,138 @@ export const clone = mutation({
     }
 
     return newModelId;
+  },
+});
+
+export const share = mutation({
+  args: {
+    modelId: v.id("models"),
+    email: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const model = await ctx.db.get(args.modelId);
+    if (!model) throw new ConvexError("Model not found");
+
+    const user = await getCurrentUserOrCrash(ctx);
+    if (model.ownerId !== user._id) {
+      throw new ConvexError("Not authorized");
+    }
+
+    const targetUser = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .unique();
+
+    if (!targetUser) {
+      throw new ConvexError("User not found");
+    }
+
+    if (targetUser._id === user._id) {
+      throw new ConvexError("Cannot share model with yourself");
+    }
+
+    const existingShare = await ctx.db
+      .query("modelShares")
+      .withIndex("by_modelId_userId", (q) =>
+        q.eq("modelId", args.modelId).eq("userId", targetUser._id),
+      )
+      .unique();
+
+    if (existingShare) {
+      throw new ConvexError("Model already shared with this user");
+    }
+
+    await ctx.db.insert("modelShares", {
+      modelId: args.modelId,
+      userId: targetUser._id,
+    });
+  },
+});
+
+export const unshare = mutation({
+  args: {
+    modelId: v.id("models"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const model = await ctx.db.get(args.modelId);
+    if (!model) throw new ConvexError("Model not found");
+
+    const user = await getCurrentUserOrCrash(ctx);
+    if (model.ownerId !== user._id) {
+      throw new ConvexError("Not authorized");
+    }
+
+    const share = await ctx.db
+      .query("modelShares")
+      .withIndex("by_modelId_userId", (q) =>
+        q.eq("modelId", args.modelId).eq("userId", args.userId),
+      )
+      .unique();
+
+    if (!share) {
+      throw new ConvexError("Share not found");
+    }
+
+    await ctx.db.delete(share._id);
+  },
+});
+
+export const listSharedUsers = query({
+  args: { modelId: v.id("models") },
+  handler: async (ctx, args) => {
+    const model = await ctx.db.get(args.modelId);
+    if (!model) return [];
+
+    const user = await getCurrentUserOrNull(ctx);
+    if (!user || model.ownerId !== user._id) {
+      return [];
+    }
+
+    const shares = await ctx.db
+      .query("modelShares")
+      .withIndex("by_modelId_userId", (q) => q.eq("modelId", args.modelId))
+      .collect();
+
+    const sharedUsers = await Promise.all(
+      shares.map(async (share) => {
+        const sharedUser = await ctx.db.get(share.userId);
+        return {
+          _id: share.userId,
+          name: getUserDisplayName(sharedUser),
+          email: sharedUser?.email ?? "",
+        };
+      }),
+    );
+
+    return sharedUsers;
+  },
+});
+
+export const listSharedWithMe = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUserOrNull(ctx);
+    if (!user) return [];
+
+    const shares = await ctx.db
+      .query("modelShares")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .collect();
+
+    const models = await Promise.all(
+      shares.map(async (share) => {
+        const model = await ctx.db.get(share.modelId);
+        if (!model || model.isPublic) return null;
+
+        const owner = await ctx.db.get(model.ownerId);
+        return {
+          ...model,
+          ownerName: getUserDisplayName(owner),
+        };
+      }),
+    );
+
+    return models.filter((m) => m !== null);
   },
 });
