@@ -9,7 +9,7 @@
     "dev:frontend": "vite --open",
     "dev:backend": "convex dev",
     "dev:backend:noninteractive": "./start-local-convex.mjs",
-    "build:wasm": "cd wasm-inference && wasm-pack build --target bundler",
+    "build:wasm": "cd wasm-inference && wasm-pack build --target bundler && rm -f pkg/.gitignore",
     "build": "tsc -b && vite build",
     "lint": "tsc -b && eslint .  --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "format": "prettier --write .",
