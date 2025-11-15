@@ -44,8 +44,8 @@ export function SensitivityPanel({
   }, [probabilisticFingerprint, targetNodeId, computeSensitivity]);
 
   const sensitivities = useMemo(() => {
-    return sensitivityState.results
-      .map(({ nodeId, sensitivity }) => {
+    return Array.from(sensitivityState.results.entries())
+      .map(([nodeId, sensitivity]) => {
         const node = nodes.find((n) => n._id === nodeId);
         return {
           nodeId,
@@ -89,19 +89,12 @@ export function SensitivityPanel({
           How each parent influences this node's probability
         </p>
         <div className="mb-4">
-          <div className="w-full bg-base-300/40 rounded-full h-2">
-            <div
-              className="bg-primary h-2 rounded-full transition-all duration-300"
-              style={{
-                width: `${sensitivityState.total > 0 ? (sensitivityState.progress / sensitivityState.total) * 100 : 0}%`
-              }}
-            />
+          <div className="w-full bg-base-300/40 rounded-full h-2 overflow-hidden">
+            <div className="bg-primary h-2 rounded-full animate-pulse w-full" />
           </div>
-          {sensitivityState.total > 0 && (
-            <p className="text-xs opacity-50 mt-2 text-center">
-              Computing {sensitivityState.progress} of {sensitivityState.total}
-            </p>
-          )}
+          <p className="text-xs opacity-50 mt-2 text-center">
+            Computing sensitivity analysis...
+          </p>
         </div>
       </div>
     );

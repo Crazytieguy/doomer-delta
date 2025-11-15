@@ -17,6 +17,9 @@ playwright-report
 test-results
 .playwright-mcp
 
+# Rust/WASM
+wasm-inference/target/
+
 # Editor directories and files
 .idea
 .DS_Store

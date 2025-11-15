@@ -31,6 +31,7 @@ Always follow the guidelines in this file, unless explicitly told otherwise by t
   - Check background process output for Convex backend errors.
   - Run `pnpm test:unit`, `pnpm lint`, and `pnpm test:e2e`
   - Review with `git diff origin/main` (or whatever branch makes sense)
+- WASM inference: Rust code in `wasm-inference/`, rebuild with `pnpm build:wasm`, benchmark with `pnpm bench`
 - Manual testing: Test UI with Playwright MCP (`mcp__playwright__browser_*`) before writing e2e tests
   - The playwright mcp server is unreliable, if it doesn't work ask the user to test manually
 - Test account: `claude+clerk_test@example.com`, code `424242`. Use slowly: true / pressSequentially to trigger auto distribution

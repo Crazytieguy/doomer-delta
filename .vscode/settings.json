@@ -17,5 +17,9 @@
     "typescript": "html",
     "typescriptreact": "html"
   },
-  "editor.formatOnSave": false
+  "editor.formatOnSave": false,
+  "[rust]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+  }
 }

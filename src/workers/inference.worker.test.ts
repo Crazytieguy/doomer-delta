@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { WorkerNode } from "../types/workerMessages";
-import { computeMarginalProbabilities } from "./inference.worker";
+import { computeMarginalProbabilities, computeSensitivity } from "./inference.worker";
 
 const SAMPLING_PRECISION = 2;
 
@@ -11,10 +11,6 @@ function createNode(
 ): WorkerNode {
   return {
     _id: id as Id<"nodes">,
-    modelId: "test-model" as Id<"models">,
-    title: `Node ${id}`,
-    x: 0,
-    y: 0,
     cptEntries,
   };
 }
@@ -705,6 +701,370 @@ describe("Bayesian Inference", () => {
 
       expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(0.6, SAMPLING_PRECISION);
       expect(probs.get("B" as Id<"nodes">)).toBeCloseTo(0.56, SAMPLING_PRECISION);
+    });
+  });
+
+  describe("Sensitivity Analysis", () => {
+    describe("Simple A→B network", () => {
+      it("computes sensitivity of B to A", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.6 }]);
+        const nodeB = createNode("B", [
+          { parentStates: { A: true }, probability: 0.8 },
+          { parentStates: { A: false }, probability: 0.2 },
+        ]);
+
+        const sensitivities = computeSensitivity([nodeA, nodeB], "B" as Id<"nodes">);
+
+        expect(sensitivities.size).toBe(1);
+        expect(sensitivities.has("A" as Id<"nodes">)).toBe(true);
+        expect(sensitivities.get("A" as Id<"nodes">)).toBeCloseTo(0.6, 1);
+      });
+
+      it("returns empty map for root node with no ancestors", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.6 }]);
+        const nodeB = createNode("B", [
+          { parentStates: { A: true }, probability: 0.8 },
+          { parentStates: { A: false }, probability: 0.2 },
+        ]);
+
+        const sensitivities = computeSensitivity([nodeA, nodeB], "A" as Id<"nodes">);
+
+        expect(sensitivities.size).toBe(0);
+      });
+    });
+
+    describe("Chain A→B→C network", () => {
+      it("includes all ancestors in sensitivity analysis", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.7 }]);
+        const nodeB = createNode("B", [
+          { parentStates: { A: true }, probability: 0.8 },
+          { parentStates: { A: false }, probability: 0.3 },
+        ]);
+        const nodeC = createNode("C", [
+          { parentStates: { B: true }, probability: 0.9 },
+          { parentStates: { B: false }, probability: 0.1 },
+        ]);
+
+        const sensitivities = computeSensitivity([nodeA, nodeB, nodeC], "C" as Id<"nodes">);
+
+        expect(sensitivities.size).toBe(2);
+        expect(sensitivities.has("A" as Id<"nodes">)).toBe(true);
+        expect(sensitivities.has("B" as Id<"nodes">)).toBe(true);
+      });
+    });
+
+    describe("V-structure (A→C←B)", () => {
+      it("includes both parents in sensitivity", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.7 }]);
+        const nodeB = createNode("B", [{ parentStates: {}, probability: 0.4 }]);
+        const nodeC = createNode("C", [
+          { parentStates: { A: true, B: true }, probability: 0.9 },
+          { parentStates: { A: true, B: false }, probability: 0.7 },
+          { parentStates: { A: false, B: true }, probability: 0.6 },
+          { parentStates: { A: false, B: false }, probability: 0.1 },
+        ]);
+
+        const sensitivities = computeSensitivity([nodeA, nodeB, nodeC], "C" as Id<"nodes">);
+
+        expect(sensitivities.size).toBe(2);
+        expect(sensitivities.has("A" as Id<"nodes">)).toBe(true);
+        expect(sensitivities.has("B" as Id<"nodes">)).toBe(true);
+      });
+    });
+
+    describe("Sensitivity value bounds", () => {
+      it("returns values between -1 and 1", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.5 }]);
+        const nodeB = createNode("B", [{ parentStates: {}, probability: 0.5 }]);
+        const nodeC = createNode("C", [
+          { parentStates: { A: true, B: true }, probability: 0.9 },
+          { parentStates: { A: true, B: false }, probability: 0.7 },
+          { parentStates: { A: false, B: true }, probability: 0.3 },
+          { parentStates: { A: false, B: false }, probability: 0.1 },
+        ]);
+
+        const sensitivities = computeSensitivity([nodeA, nodeB, nodeC], "C" as Id<"nodes">, 100000);
+
+        for (const [_nodeId, sensitivity] of sensitivities) {
+          expect(sensitivity).toBeGreaterThanOrEqual(-1);
+          expect(sensitivity).toBeLessThanOrEqual(1);
+        }
+      });
+    });
+
+    describe("Diamond structure (A→B, A→C, B→D, C→D)", () => {
+      it("includes all ancestors through multiple paths", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.6 }]);
+        const nodeB = createNode("B", [
+          { parentStates: { A: true }, probability: 0.7 },
+          { parentStates: { A: false }, probability: 0.3 },
+        ]);
+        const nodeC = createNode("C", [
+          { parentStates: { A: true }, probability: 0.8 },
+          { parentStates: { A: false }, probability: 0.2 },
+        ]);
+        const nodeD = createNode("D", [
+          { parentStates: { B: true, C: true }, probability: 0.95 },
+          { parentStates: { B: true, C: false }, probability: 0.6 },
+          { parentStates: { B: false, C: true }, probability: 0.5 },
+          { parentStates: { B: false, C: false }, probability: 0.1 },
+        ]);
+
+        const sensitivities = computeSensitivity([nodeA, nodeB, nodeC, nodeD], "D" as Id<"nodes">);
+
+        expect(sensitivities.size).toBe(3);
+        expect(sensitivities.has("A" as Id<"nodes">)).toBe(true);
+        expect(sensitivities.has("B" as Id<"nodes">)).toBe(true);
+        expect(sensitivities.has("C" as Id<"nodes">)).toBe(true);
+      });
+
+      it("computes non-zero sensitivity for distant ancestor A", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.6 }]);
+        const nodeB = createNode("B", [
+          { parentStates: { A: true }, probability: 0.7 },
+          { parentStates: { A: false }, probability: 0.3 },
+        ]);
+        const nodeC = createNode("C", [
+          { parentStates: { A: true }, probability: 0.8 },
+          { parentStates: { A: false }, probability: 0.2 },
+        ]);
+        const nodeD = createNode("D", [
+          { parentStates: { B: true, C: true }, probability: 0.95 },
+          { parentStates: { B: true, C: false }, probability: 0.6 },
+          { parentStates: { B: false, C: true }, probability: 0.5 },
+          { parentStates: { B: false, C: false }, probability: 0.1 },
+        ]);
+
+        const sensitivities = computeSensitivity([nodeA, nodeB, nodeC, nodeD], "D" as Id<"nodes">);
+
+        const sensitivityA = sensitivities.get("A" as Id<"nodes">);
+        expect(sensitivityA).toBeDefined();
+        expect(Math.abs(sensitivityA!)).toBeGreaterThan(0.1);
+      });
+    });
+
+    describe("Long chain (5 nodes)", () => {
+      it("includes all ancestors in long chain", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.7 }]);
+        const nodeB = createNode("B", [
+          { parentStates: { A: true }, probability: 0.8 },
+          { parentStates: { A: false }, probability: 0.2 },
+        ]);
+        const nodeC = createNode("C", [
+          { parentStates: { B: true }, probability: 0.75 },
+          { parentStates: { B: false }, probability: 0.25 },
+        ]);
+        const nodeD = createNode("D", [
+          { parentStates: { C: true }, probability: 0.85 },
+          { parentStates: { C: false }, probability: 0.15 },
+        ]);
+        const nodeE = createNode("E", [
+          { parentStates: { D: true }, probability: 0.9 },
+          { parentStates: { D: false }, probability: 0.1 },
+        ]);
+
+        const sensitivities = computeSensitivity([nodeA, nodeB, nodeC, nodeD, nodeE], "E" as Id<"nodes">);
+
+        expect(sensitivities.size).toBe(4);
+        expect(sensitivities.has("A" as Id<"nodes">)).toBe(true);
+        expect(sensitivities.has("B" as Id<"nodes">)).toBe(true);
+        expect(sensitivities.has("C" as Id<"nodes">)).toBe(true);
+        expect(sensitivities.has("D" as Id<"nodes">)).toBe(true);
+      });
+
+      it("shows decreasing sensitivity with distance", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.7 }]);
+        const nodeB = createNode("B", [
+          { parentStates: { A: true }, probability: 0.8 },
+          { parentStates: { A: false }, probability: 0.2 },
+        ]);
+        const nodeC = createNode("C", [
+          { parentStates: { B: true }, probability: 0.75 },
+          { parentStates: { B: false }, probability: 0.25 },
+        ]);
+        const nodeD = createNode("D", [
+          { parentStates: { C: true }, probability: 0.85 },
+          { parentStates: { C: false }, probability: 0.15 },
+        ]);
+
+        const sensitivities = computeSensitivity([nodeA, nodeB, nodeC, nodeD], "D" as Id<"nodes">, 100000);
+
+        const sensA = Math.abs(sensitivities.get("A" as Id<"nodes">)!);
+        const sensB = Math.abs(sensitivities.get("B" as Id<"nodes">)!);
+        const sensC = Math.abs(sensitivities.get("C" as Id<"nodes">)!);
+
+        expect(sensC).toBeGreaterThan(sensB);
+        expect(sensB).toBeGreaterThan(sensA);
+      });
+    });
+
+    describe("Disconnected nodes", () => {
+      it("excludes nodes that are not ancestors", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.6 }]);
+        const nodeB = createNode("B", [
+          { parentStates: { A: true }, probability: 0.8 },
+          { parentStates: { A: false }, probability: 0.2 },
+        ]);
+        const nodeX = createNode("X", [{ parentStates: {}, probability: 0.5 }]);
+        const nodeY = createNode("Y", [
+          { parentStates: { X: true }, probability: 0.7 },
+          { parentStates: { X: false }, probability: 0.3 },
+        ]);
+
+        const sensitivities = computeSensitivity([nodeA, nodeB, nodeX, nodeY], "B" as Id<"nodes">);
+
+        expect(sensitivities.size).toBe(1);
+        expect(sensitivities.has("A" as Id<"nodes">)).toBe(true);
+        expect(sensitivities.has("X" as Id<"nodes">)).toBe(false);
+        expect(sensitivities.has("Y" as Id<"nodes">)).toBe(false);
+      });
+    });
+
+    describe("Negative sensitivity", () => {
+      it("computes negative sensitivity when intervention reduces probability", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.5 }]);
+        const nodeB = createNode("B", [
+          { parentStates: { A: true }, probability: 0.2 },
+          { parentStates: { A: false }, probability: 0.8 },
+        ]);
+
+        const sensitivities = computeSensitivity([nodeA, nodeB], "B" as Id<"nodes">, 100000);
+
+        const sensitivityA = sensitivities.get("A" as Id<"nodes">);
+        expect(sensitivityA).toBeDefined();
+        expect(sensitivityA!).toBeLessThan(0);
+        expect(sensitivityA!).toBeCloseTo(-0.6, 1);
+      });
+    });
+
+    describe("Three-parent node", () => {
+      it("includes all three parents in sensitivity", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.6 }]);
+        const nodeB = createNode("B", [{ parentStates: {}, probability: 0.5 }]);
+        const nodeC = createNode("C", [{ parentStates: {}, probability: 0.4 }]);
+        const nodeD = createNode("D", [
+          { parentStates: { A: true, B: true, C: true }, probability: 0.95 },
+          { parentStates: { A: true, B: true, C: false }, probability: 0.7 },
+          { parentStates: { A: true, B: false, C: true }, probability: 0.6 },
+          { parentStates: { A: false, B: true, C: true }, probability: 0.5 },
+          { parentStates: {}, probability: 0.3 },
+        ]);
+
+        const sensitivities = computeSensitivity([nodeA, nodeB, nodeC, nodeD], "D" as Id<"nodes">);
+
+        expect(sensitivities.size).toBe(3);
+        expect(sensitivities.has("A" as Id<"nodes">)).toBe(true);
+        expect(sensitivities.has("B" as Id<"nodes">)).toBe(true);
+        expect(sensitivities.has("C" as Id<"nodes">)).toBe(true);
+      });
+    });
+
+    describe("Wildcard CPT in sensitivity", () => {
+      it("handles wildcards in target node CPT", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.6 }]);
+        const nodeB = createNode("B", [{ parentStates: {}, probability: 0.5 }]);
+        const nodeC = createNode("C", [
+          { parentStates: { A: true, B: null }, probability: 0.8 },
+          { parentStates: { A: false, B: null }, probability: 0.3 },
+        ]);
+
+        const sensitivities = computeSensitivity([nodeA, nodeB, nodeC], "C" as Id<"nodes">);
+
+        expect(sensitivities.size).toBe(2);
+        expect(sensitivities.has("A" as Id<"nodes">)).toBe(true);
+        expect(sensitivities.has("B" as Id<"nodes">)).toBe(true);
+      });
+    });
+
+    describe("Asymmetric probabilities", () => {
+      it("computes sensitivity with extreme probabilities", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.99 }]);
+        const nodeB = createNode("B", [
+          { parentStates: { A: true }, probability: 0.95 },
+          { parentStates: { A: false }, probability: 0.05 },
+        ]);
+
+        const sensitivities = computeSensitivity([nodeA, nodeB], "B" as Id<"nodes">, 100000);
+
+        const sensitivityA = sensitivities.get("A" as Id<"nodes">);
+        expect(sensitivityA).toBeDefined();
+        expect(sensitivityA!).toBeGreaterThan(0.8);
+        expect(sensitivityA!).toBeLessThan(1.0);
+      });
+    });
+
+    describe("Intervention validation", () => {
+      it("computes correct sensitivity with known intervention effects", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.5 }]);
+        const nodeB = createNode("B", [
+          { parentStates: { A: true }, probability: 0.9 },
+          { parentStates: { A: false }, probability: 0.1 },
+        ]);
+
+        const sensitivities = computeSensitivity([nodeA, nodeB], "B" as Id<"nodes">, 100000);
+
+        const sensitivityA = sensitivities.get("A" as Id<"nodes">);
+        expect(sensitivityA).toBeDefined();
+        expect(sensitivityA!).toBeCloseTo(0.8, 1);
+      });
+
+      it("intervention on true forces probability to 1.0", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.3 }]);
+        const nodeB = createNode("B", [
+          { parentStates: { A: true }, probability: 0.7 },
+          { parentStates: { A: false }, probability: 0.2 },
+        ]);
+
+        const sensitivities = computeSensitivity([nodeA, nodeB], "B" as Id<"nodes">, 100000);
+
+        const sensitivityA = sensitivities.get("A" as Id<"nodes">);
+        expect(sensitivityA).toBeDefined();
+        expect(sensitivityA!).toBeCloseTo(0.5, 1);
+      });
+
+      it("intervention breaks correlation correctly", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.6 }]);
+        const nodeB = createNode("B", [
+          { parentStates: { A: true }, probability: 1.0 },
+          { parentStates: { A: false }, probability: 0.0 },
+        ]);
+
+        const sensitivities = computeSensitivity([nodeA, nodeB], "B" as Id<"nodes">, 100000);
+
+        const sensitivityA = sensitivities.get("A" as Id<"nodes">);
+        expect(sensitivityA).toBeDefined();
+        expect(sensitivityA!).toBeCloseTo(1.0, 1);
+      });
+
+      it("intervention on independent nodes shows zero sensitivity", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.5 }]);
+        const nodeB = createNode("B", [{ parentStates: {}, probability: 0.7 }]);
+
+        const sensitivities = computeSensitivity([nodeA, nodeB], "B" as Id<"nodes">, 100000);
+
+        expect(sensitivities.size).toBe(0);
+      });
+
+      it("intervention respects conditional probabilities", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.4 }]);
+        const nodeB = createNode("B", [{ parentStates: {}, probability: 0.6 }]);
+        const nodeC = createNode("C", [
+          { parentStates: { A: true, B: true }, probability: 0.95 },
+          { parentStates: { A: true, B: false }, probability: 0.6 },
+          { parentStates: { A: false, B: true }, probability: 0.5 },
+          { parentStates: { A: false, B: false }, probability: 0.1 },
+        ]);
+
+        const sensitivities = computeSensitivity([nodeA, nodeB, nodeC], "C" as Id<"nodes">, 100000);
+
+        const sensA = sensitivities.get("A" as Id<"nodes">);
+        const sensB = sensitivities.get("B" as Id<"nodes">);
+
+        expect(sensA).toBeDefined();
+        expect(sensB).toBeDefined();
+        expect(Math.abs(sensA!)).toBeGreaterThan(0.1);
+        expect(Math.abs(sensB!)).toBeGreaterThan(0.1);
+      });
     });
   });
 });

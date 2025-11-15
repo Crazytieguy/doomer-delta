@@ -6,16 +6,9 @@ import {
 } from "../types/workerMessages";
 import { computeProbabilisticFingerprint } from "@/lib/probabilisticFingerprint";
 
-export interface SensitivityResult {
-  nodeId: Id<"nodes">;
-  sensitivity: number;
-}
-
 export interface SensitivityState {
   isLoading: boolean;
-  results: SensitivityResult[];
-  progress: number;
-  total: number;
+  results: Map<Id<"nodes">, number>;
   error: string | null;
 }
 
@@ -58,9 +51,10 @@ class LRUCache<K, V> {
 }
 
 const marginalsCache = new LRUCache<string, Map<Id<"nodes">, number>>(MAX_CACHE_SIZE);
-const sensitivityCache = new LRUCache<string, SensitivityResult[]>(MAX_CACHE_SIZE);
+const sensitivityCache = new LRUCache<string, Map<Id<"nodes">, number>>(MAX_CACHE_SIZE);
 
 let sharedWorker: Worker | null = null;
+let sharedWorkerReady = false;
 
 function getSharedWorker(): Worker {
   if (!sharedWorker) {
@@ -72,8 +66,18 @@ function getSharedWorker(): Worker {
   return sharedWorker;
 }
 
+function isSharedWorkerReady(): boolean {
+  return sharedWorkerReady;
+}
+
+function setSharedWorkerReady(): void {
+  sharedWorkerReady = true;
+}
+
 export function useInferenceWorker() {
   const workerRef = useRef<Worker | null>(null);
+  const workerReady = useRef(false);
+  const messageQueue = useRef<Array<unknown>>([]);
   const pendingMarginalsCacheKey = useRef<string | null>(null);
   const pendingSensitivityCacheKey = useRef<string | null>(null);
   const currentMarginalsRequestId = useRef<string | null>(null);
@@ -81,9 +85,7 @@ export function useInferenceWorker() {
 
   const [sensitivityState, setSensitivityState] = useState<SensitivityState>({
     isLoading: false,
-    results: [],
-    progress: 0,
-    total: 0,
+    results: new Map(),
     error: null,
   });
   const [marginalsState, setMarginalsState] = useState<MarginalsState>({
@@ -94,53 +96,50 @@ export function useInferenceWorker() {
 
   useEffect(() => {
     workerRef.current = getSharedWorker();
+    workerReady.current = isSharedWorkerReady();
 
     const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "WORKER_READY") {
+        workerReady.current = true;
+        setSharedWorkerReady();
+        while (messageQueue.current.length > 0) {
+          const queued = messageQueue.current.shift();
+          if (queued && workerRef.current) {
+            workerRef.current.postMessage(queued);
+          }
+        }
+        return;
+      }
+
       try {
         const message = workerResponseSchema.parse(event.data);
 
         if (message.type === "MARGINALS_RESULT") {
           if (message.requestId !== currentMarginalsRequestId.current) return;
 
-          const probabilities = new Map<Id<"nodes">, number>();
-          for (const [nodeId, prob] of Object.entries(message.probabilities)) {
-            probabilities.set(nodeId as Id<"nodes">, prob);
-          }
-
           if (pendingMarginalsCacheKey.current) {
-            marginalsCache.set(pendingMarginalsCacheKey.current, probabilities);
+            marginalsCache.set(pendingMarginalsCacheKey.current, message.probabilities as Map<Id<"nodes">, number>);
             pendingMarginalsCacheKey.current = null;
           }
 
           setMarginalsState({
             isLoading: false,
-            probabilities,
+            probabilities: message.probabilities as Map<Id<"nodes">, number>,
             error: null,
           });
-        } else if (message.type === "SENSITIVITY_PROGRESS") {
-          if (message.requestId !== currentSensitivityRequestId.current) return;
-
-          setSensitivityState((prev) => ({
-            ...prev,
-            results: [
-              ...prev.results,
-              { nodeId: message.nodeId, sensitivity: message.sensitivity },
-            ],
-            progress: message.completed,
-            total: message.total,
-          }));
         } else if (message.type === "SENSITIVITY_COMPLETE") {
           if (message.requestId !== currentSensitivityRequestId.current) return;
 
           if (pendingSensitivityCacheKey.current) {
-            sensitivityCache.set(pendingSensitivityCacheKey.current, message.sensitivities);
+            sensitivityCache.set(pendingSensitivityCacheKey.current, message.sensitivities as Map<Id<"nodes">, number>);
             pendingSensitivityCacheKey.current = null;
           }
 
-          setSensitivityState((prev) => ({
-            ...prev,
+          setSensitivityState({
             isLoading: false,
-          }));
+            results: message.sensitivities as Map<Id<"nodes">, number>,
+            error: null,
+          });
         } else if (message.type === "ERROR") {
           if (message.requestId === currentMarginalsRequestId.current) {
             pendingMarginalsCacheKey.current = null;
@@ -212,11 +211,17 @@ export function useInferenceWorker() {
       error: null,
     }));
 
-    workerRef.current.postMessage({
+    const message = {
       type: "COMPUTE_MARGINALS",
       requestId,
       nodes,
-    });
+    };
+
+    if (workerReady.current) {
+      workerRef.current.postMessage(message);
+    } else {
+      messageQueue.current.push(message);
+    }
   }, []);
 
   const computeSensitivity = useCallback(
@@ -230,8 +235,6 @@ export function useInferenceWorker() {
         setSensitivityState({
           isLoading: false,
           results: cached,
-          progress: 0,
-          total: 0,
           error: null,
         });
         return;
@@ -243,18 +246,22 @@ export function useInferenceWorker() {
 
       setSensitivityState({
         isLoading: true,
-        results: [],
-        progress: 0,
-        total: 0,
+        results: new Map(),
         error: null,
       });
 
-      workerRef.current.postMessage({
+      const message = {
         type: "COMPUTE_SENSITIVITY",
         requestId,
         nodes,
         targetNodeId,
-      });
+      };
+
+      if (workerReady.current) {
+        workerRef.current.postMessage(message);
+      } else {
+        messageQueue.current.push(message);
+      }
     },
     []
   );
