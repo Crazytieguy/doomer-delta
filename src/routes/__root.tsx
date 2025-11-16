@@ -161,8 +161,8 @@ function RootComponent() {
                 </div>
               </Authenticated>
               <Unauthenticated>
-                <header className="navbar bg-gradient-to-r from-base-100 via-base-100 to-base-100/95 shadow-md border-b border-base-300/50">
-                  <div className="container mx-auto flex justify-between w-full">
+                <div className="container mx-auto flex flex-col h-full">
+                  <header className="navbar bg-gradient-to-r from-base-100 via-base-100 to-base-100/95 shadow-md border-b border-base-300/50">
                     <div className="navbar-start">
                       <Link
                         to="/"
@@ -195,13 +195,13 @@ function RootComponent() {
                         </button>
                       </SignUpButton>
                     </div>
-                  </div>
-                </header>
-                <main className="flex-1 container mx-auto p-4 prose prose-invert max-w-none">
-                  <ErrorBoundary>
-                    <Outlet />
-                  </ErrorBoundary>
-                </main>
+                  </header>
+                  <main className="flex-1 p-4 prose prose-invert max-w-none">
+                    <ErrorBoundary>
+                      <Outlet />
+                    </ErrorBoundary>
+                  </main>
+                </div>
               </Unauthenticated>
             </div>
             {import.meta.env.DEV && <TanStackRouterDevtools />}
