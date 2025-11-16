@@ -671,7 +671,7 @@ export function CPTEditor({
                     step="0.01"
                     min="0"
                     max="1"
-                    className="input input-xs w-20 font-mono"
+                    className="input input-xs w-full font-mono"
                     value={entry.probability}
                     onChange={(e) =>
                       handleProbabilityChange(

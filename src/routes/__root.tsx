@@ -113,9 +113,6 @@ function RootComponent() {
                         <Outlet />
                       </ErrorBoundary>
                     </main>
-                    <footer className="footer footer-center p-4 text-base-content">
-                      <p>© {new Date().getFullYear()} Doomer Delta</p>
-                    </footer>
                   </div>
                   {/* Sidebar content for mobile */}
                   <div className="drawer-side z-10">
@@ -205,9 +202,6 @@ function RootComponent() {
                     <Outlet />
                   </ErrorBoundary>
                 </main>
-                <footer className="footer footer-center p-4 text-base-content">
-                  <p>© {new Date().getFullYear()} Doomer Delta</p>
-                </footer>
               </Unauthenticated>
             </div>
             {import.meta.env.DEV && <TanStackRouterDevtools />}

@@ -49,6 +49,7 @@ function ModelDetailPage() {
     model?.description ?? "",
   );
   const [hasModelChanges, setHasModelChanges] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   const isOwner = model?.isOwner ?? false;
   const isReadOnly = !isOwner;
@@ -189,8 +190,74 @@ function ModelDetailPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-10rem)]">
-      <div className="relative z-10">
+    <>
+      {isFullScreen && (
+        <div className="fixed inset-0 z-50 bg-base-100 flex">
+          <div className="not-prose flex flex-1 overflow-hidden">
+            <PanelGroup
+              autoSaveId="model-editor-layout"
+              direction="horizontal"
+              className="w-full h-full"
+            >
+              <Panel id="graph" order={1}>
+                <GraphEditor
+                  modelId={modelId as Id<"models">}
+                  nodes={nodes}
+                  selectedNode={selectedNode}
+                  onNodeSelect={handleNodeSelect}
+                  isReadOnly={isReadOnly}
+                  isFullScreen={isFullScreen}
+                  onToggleFullScreen={() => setIsFullScreen(!isFullScreen)}
+                />
+              </Panel>
+
+              {selectedNodeData && (
+                <>
+                  <PanelResizeHandle className="w-1 bg-accent/35 hover:bg-secondary transition-colors" />
+                  <Panel
+                    id="inspector"
+                    order={2}
+                    defaultSize={30}
+                    minSize={20}
+                    className="min-w-78"
+                  >
+                    <NodeInspector
+                      key={selectedNode}
+                      node={selectedNodeData}
+                      allNodes={nodes}
+                      onClose={handleCloseSidebar}
+                      onUpdate={(updates) => {
+                        void (async () => {
+                          try {
+                            await updateNode({ id: selectedNode!, ...updates });
+                            showSuccess("Node updated successfully");
+                          } catch (error) {
+                            showError(error);
+                          }
+                        })();
+                      }}
+                      onDelete={() => {
+                        void (async () => {
+                          try {
+                            await deleteNode({ id: selectedNode! });
+                            handleCloseSidebar();
+                            showSuccess("Node deleted successfully");
+                          } catch (error) {
+                            showError(error);
+                          }
+                        })();
+                      }}
+                      isReadOnly={isReadOnly}
+                    />
+                  </Panel>
+                </>
+              )}
+            </PanelGroup>
+          </div>
+        </div>
+      )}
+      <div className={`flex flex-col ${isFullScreen ? "hidden" : "h-[calc(100vh-7rem)]"}`}>
+        <div className="relative z-10">
         {isReadOnly ? (
           <>
             <div className="flex gap-4 items-start justify-between mb-2">
@@ -368,9 +435,9 @@ function ModelDetailPage() {
             )}
           </form>
         )}
-      </div>
+        </div>
 
-      <div className="not-prose flex flex-1 overflow-hidden shadow-[4px_4px_12px_rgba(0,0,0,0.15)]">
+        <div className="not-prose flex flex-1 overflow-hidden shadow-[4px_4px_12px_rgba(0,0,0,0.15)] relative">
         {/* Desktop layout with resizable panels */}
         <PanelGroup
           autoSaveId="model-editor-layout"
@@ -384,6 +451,8 @@ function ModelDetailPage() {
               selectedNode={selectedNode}
               onNodeSelect={handleNodeSelect}
               isReadOnly={isReadOnly}
+              isFullScreen={isFullScreen}
+              onToggleFullScreen={() => setIsFullScreen(!isFullScreen)}
             />
           </Panel>
 
@@ -438,6 +507,8 @@ function ModelDetailPage() {
             selectedNode={selectedNode}
             onNodeSelect={handleNodeSelect}
             isReadOnly={isReadOnly}
+            isFullScreen={isFullScreen}
+            onToggleFullScreen={() => setIsFullScreen(!isFullScreen)}
           />
         </div>
 
@@ -480,7 +551,8 @@ function ModelDetailPage() {
             </div>
           </>
         )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

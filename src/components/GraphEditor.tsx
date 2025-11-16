@@ -1,5 +1,5 @@
 import { useMutation } from "convex/react";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2, Maximize, Minimize } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInferenceWorker } from "@/hooks/useInferenceWorker";
 import { computeProbabilisticFingerprint } from "@/lib/probabilisticFingerprint";
@@ -51,6 +51,8 @@ interface GraphEditorProps {
   selectedNode: Id<"nodes"> | null;
   onNodeSelect: (nodeId: Id<"nodes"> | null) => void;
   isReadOnly?: boolean;
+  isFullScreen?: boolean;
+  onToggleFullScreen?: () => void;
 }
 
 function ProbabilityNode({ data }: NodeProps) {
@@ -85,6 +87,8 @@ export function GraphEditor({
   selectedNode,
   onNodeSelect,
   isReadOnly,
+  isFullScreen,
+  onToggleFullScreen,
 }: GraphEditorProps) {
   return (
     <ReactFlowProvider>
@@ -94,6 +98,8 @@ export function GraphEditor({
         selectedNode={selectedNode}
         onNodeSelect={onNodeSelect}
         isReadOnly={isReadOnly}
+        isFullScreen={isFullScreen}
+        onToggleFullScreen={onToggleFullScreen}
       />
     </ReactFlowProvider>
   );
@@ -105,6 +111,8 @@ function GraphEditorInner({
   selectedNode,
   onNodeSelect,
   isReadOnly = false,
+  isFullScreen = false,
+  onToggleFullScreen,
 }: GraphEditorProps) {
   const { screenToFlowPosition } = useReactFlow();
   const { showError, showSuccess } = useToast();
@@ -514,6 +522,30 @@ function GraphEditorInner({
             className="bg-base-100/90 backdrop-blur-sm border border-base-300/50 px-3 py-2 rounded-lg shadow-sm"
           >
             <Loader2 className="w-4 h-4 animate-spin opacity-60" />
+          </Panel>
+        )}
+        {onToggleFullScreen && (
+          <Panel
+            position="top-right"
+            className="bg-base-100/90 backdrop-blur-sm border border-base-300/50 rounded-lg shadow-sm ml-2"
+          >
+            <button
+              className="btn btn-sm btn-ghost gap-1"
+              onClick={onToggleFullScreen}
+              aria-label={isFullScreen ? "Exit full screen" : "Enter full screen"}
+            >
+              {isFullScreen ? (
+                <>
+                  <Minimize className="w-4 h-4" />
+                  Exit Full Screen
+                </>
+              ) : (
+                <>
+                  <Maximize className="w-4 h-4" />
+                  Full Screen
+                </>
+              )}
+            </button>
           </Panel>
         )}
       </ReactFlow>
