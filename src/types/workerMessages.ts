@@ -9,7 +9,7 @@ export const nodeSchema = z.object({
     z.object({
       parentStates: z.record(z.string(), z.union([z.boolean(), z.null()])),
       probability: z.number(),
-    })
+    }),
   ),
 });
 
@@ -59,8 +59,12 @@ export const workerResponseSchema = z.discriminatedUnion("type", [
 
 export type WorkerRequest = z.infer<typeof workerRequestSchema>;
 export type WorkerResponse = z.infer<typeof workerResponseSchema>;
-export type ComputeMarginalsRequest = z.infer<typeof computeMarginalsRequestSchema>;
-export type ComputeSensitivityRequest = z.infer<typeof computeSensitivityRequestSchema>;
+export type ComputeMarginalsRequest = z.infer<
+  typeof computeMarginalsRequestSchema
+>;
+export type ComputeSensitivityRequest = z.infer<
+  typeof computeSensitivityRequestSchema
+>;
 export type MarginalsResult = z.infer<typeof marginalsResultSchema>;
 export type SensitivityComplete = z.infer<typeof sensitivityCompleteSchema>;
 export type ErrorMessage = z.infer<typeof errorMessageSchema>;

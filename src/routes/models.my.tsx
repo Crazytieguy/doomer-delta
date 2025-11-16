@@ -1,10 +1,11 @@
 import { convexQuery } from "@convex-dev/react-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { Plus } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { useToast } from "../components/ToastContext";
+import { ModelCard } from "../components/ModelCard";
 
 const modelsQueryOptions = convexQuery(api.models.listMyModels, {});
 const sharedModelsQueryOptions = convexQuery(api.models.listSharedWithMe, {});
@@ -60,29 +61,20 @@ function MyModelsPage() {
       ) : (
         <div className="not-prose grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {models.map((model) => (
-            <Link
+            <ModelCard
               key={model._id}
-              to="/models/$modelId"
-              params={{ modelId: model._id }}
-              className="card card-border bg-gradient-to-br from-base-200 via-base-200 to-base-300/30 hover:shadow-lg transition-shadow duration-300"
-            >
-              <div className="card-body">
-                <div className="flex justify-between items-start gap-2">
-                  <h3 className="card-title flex-1">{model.name}</h3>
-                  {model.isPublic && (
-                    <span className="badge badge-success gap-1 whitespace-nowrap">
-                      <span>●</span> Public
-                    </span>
-                  )}
-                </div>
-                {model.description && (
-                  <p className="text-sm opacity-70">{model.description}</p>
-                )}
-                <div className="text-xs opacity-50 mt-2">
-                  {new Date(model._creationTime).toLocaleDateString()}
-                </div>
-              </div>
-            </Link>
+              modelId={model._id}
+              name={model.name}
+              description={model.description}
+              ownerName="You"
+              creationTime={model._creationTime}
+              uniqueForkers={model.uniqueForkers}
+              badge={
+                model.isPublic
+                  ? { text: "Public", variant: "primary" }
+                  : undefined
+              }
+            />
           ))}
         </div>
       )}
@@ -92,27 +84,15 @@ function MyModelsPage() {
           <h2 className="text-2xl font-bold mb-4">Shared with You</h2>
           <div className="not-prose grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {sharedModels.map((model) => (
-              <Link
+              <ModelCard
                 key={model._id}
-                to="/models/$modelId"
-                params={{ modelId: model._id }}
-                className="card card-border bg-gradient-to-br from-base-200 via-base-200 to-accent/5 hover:shadow-lg transition-shadow duration-300"
-              >
-                <div className="card-body">
-                  <div className="flex justify-between items-start gap-2">
-                    <h3 className="card-title flex-1">{model.name}</h3>
-                    <span className="badge badge-accent gap-1 whitespace-nowrap">
-                      Shared
-                    </span>
-                  </div>
-                  {model.description && (
-                    <p className="text-sm opacity-70">{model.description}</p>
-                  )}
-                  <div className="text-xs opacity-50 mt-2">
-                    Shared by {model.ownerName}
-                  </div>
-                </div>
-              </Link>
+                modelId={model._id}
+                name={model.name}
+                description={model.description}
+                ownerName={model.ownerName}
+                creationTime={model._creationTime}
+                uniqueForkers={model.uniqueForkers}
+              />
             ))}
           </div>
         </div>

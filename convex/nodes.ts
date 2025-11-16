@@ -215,9 +215,7 @@ export const update = mutation({
       } else {
         const columnOrderSet = new Set(args.columnOrder);
         if (columnOrderSet.size !== args.columnOrder.length) {
-          throw new ConvexError(
-            "columnOrder contains duplicate parent IDs",
-          );
+          throw new ConvexError("columnOrder contains duplicate parent IDs");
         }
         if (columnOrderSet.size !== newParentIds.size) {
           throw new ConvexError(

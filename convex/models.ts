@@ -28,7 +28,7 @@ export const listPublic = query({
   handler: async (ctx, args) => {
     const results = await ctx.db
       .query("models")
-      .withIndex("by_isPublic", (q) => q.eq("isPublic", true))
+      .withIndex("by_isPublic_uniqueForkers", (q) => q.eq("isPublic", true))
       .order("desc")
       .paginate(args.paginationOpts);
 
@@ -54,7 +54,7 @@ export const listPublicInitial = query({
   handler: async (ctx) => {
     const models = await ctx.db
       .query("models")
-      .withIndex("by_isPublic", (q) => q.eq("isPublic", true))
+      .withIndex("by_isPublic_uniqueForkers", (q) => q.eq("isPublic", true))
       .order("desc")
       .take(12);
 
@@ -78,14 +78,17 @@ export const get = query({
     const model = await ctx.db.get(args.id);
     if (!model) return null;
 
+    const owner = await ctx.db.get(model.ownerId);
+    const ownerName = getUserDisplayName(owner);
+
     const user = await getCurrentUserOrNull(ctx);
     if (!user) {
-      return model.isPublic ? { ...model, isOwner: false } : null;
+      return model.isPublic ? { ...model, isOwner: false, ownerName } : null;
     }
 
     const isOwner = model.ownerId === user._id;
     if (isOwner || model.isPublic) {
-      return { ...model, isOwner };
+      return { ...model, isOwner, ownerName };
     }
 
     const share = await ctx.db
@@ -96,7 +99,7 @@ export const get = query({
       .unique();
 
     if (share) {
-      return { ...model, isOwner: false };
+      return { ...model, isOwner: false, ownerName };
     }
 
     return null;
@@ -115,6 +118,7 @@ export const create = mutation({
       description: args.description,
       ownerId: user._id,
       isPublic: false,
+      uniqueForkers: 0,
     });
     return modelId;
   },
@@ -201,11 +205,33 @@ export const remove = mutation({
       await ctx.db.delete(share._id);
     }
 
+    if (model.forkedFrom) {
+      const parent = await ctx.db.get(model.forkedFrom);
+      if (parent) {
+        const otherForksFromSameUser = await ctx.db
+          .query("models")
+          .withIndex("by_ownerId", (q) => q.eq("ownerId", model.ownerId))
+          .filter((q) =>
+            q.and(
+              q.eq(q.field("forkedFrom"), model.forkedFrom),
+              q.neq(q.field("_id"), args.id),
+            ),
+          )
+          .first();
+
+        if (!otherForksFromSameUser && model.ownerId !== parent.ownerId) {
+          await ctx.db.patch(model.forkedFrom, {
+            uniqueForkers: Math.max(0, (parent.uniqueForkers ?? 0) - 1),
+          });
+        }
+      }
+    }
+
     await ctx.db.delete(args.id);
   },
 });
 
-export const clone = mutation({
+export const fork = mutation({
   args: { id: v.id("models") },
   handler: async (ctx, args) => {
     const model = await ctx.db.get(args.id);
@@ -227,12 +253,26 @@ export const clone = mutation({
       }
     }
 
+    const existingFork = await ctx.db
+      .query("models")
+      .withIndex("by_ownerId", (q) => q.eq("ownerId", user._id))
+      .filter((q) => q.eq(q.field("forkedFrom"), args.id))
+      .first();
+
     const newModelId = await ctx.db.insert("models", {
       name: `${model.name} (Copy)`,
       description: model.description,
       ownerId: user._id,
       isPublic: false,
+      forkedFrom: args.id,
+      uniqueForkers: 0,
     });
+
+    if (!isOwner && !existingFork) {
+      await ctx.db.patch(args.id, {
+        uniqueForkers: (model.uniqueForkers ?? 0) + 1,
+      });
+    }
 
     const nodes = await ctx.db
       .query("nodes")
@@ -276,23 +316,21 @@ export const clone = mutation({
         };
       });
 
-      const remappedColumnOrder = node.columnOrder
-        ?.map((oldParentId) => {
-          const newParentId = nodeIdMap.get(oldParentId);
-          if (!newParentId) {
-            throw new ConvexError(
-              `Failed to find cloned parent node for columnOrder: ${oldParentId}`,
-            );
-          }
-          return newParentId as Id<"nodes">;
-        });
+      const remappedColumnOrder = node.columnOrder?.map((oldParentId) => {
+        const newParentId = nodeIdMap.get(oldParentId);
+        if (!newParentId) {
+          throw new ConvexError(
+            `Failed to find cloned parent node for columnOrder: ${oldParentId}`,
+          );
+        }
+        return newParentId as Id<"nodes">;
+      });
 
       await ctx.db.patch(newNodeId as Id<"nodes">, {
         cptEntries: remappedCptEntries,
-        columnOrder: remappedColumnOrder || syncColumnOrderWithCptEntries(
-          remappedCptEntries,
-          undefined,
-        ),
+        columnOrder:
+          remappedColumnOrder ||
+          syncColumnOrderWithCptEntries(remappedCptEntries, undefined),
       });
     }
 

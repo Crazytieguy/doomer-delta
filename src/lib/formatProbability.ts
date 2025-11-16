@@ -1,4 +1,7 @@
-export function formatProbability(probability: number, sigFigs: number = 2): string {
+export function formatProbability(
+  probability: number,
+  sigFigs: number = 2,
+): string {
   if (probability === 0) return "0";
   if (probability === 1) return "1";
 
@@ -11,7 +14,10 @@ export function formatProbability(probability: number, sigFigs: number = 2): str
   return formatted;
 }
 
-export function formatProbabilityAsPercentage(probability: number, sigFigs: number = 2): string {
+export function formatProbabilityAsPercentage(
+  probability: number,
+  sigFigs: number = 2,
+): string {
   const percentage = probability * 100;
 
   if (percentage === 0) return "0%";

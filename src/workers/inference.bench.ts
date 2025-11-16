@@ -5,7 +5,10 @@ import * as wasm from "../../wasm-inference/pkg/wasm_inference";
 
 function createNode(
   id: string,
-  cptEntries: Array<{ parentStates: Record<string, boolean | null>; probability: number }>,
+  cptEntries: Array<{
+    parentStates: Record<string, boolean | null>;
+    probability: number;
+  }>,
 ): WorkerNode {
   return {
     _id: id as Id<"nodes">,
@@ -13,7 +16,10 @@ function createNode(
   };
 }
 
-function countStats(nodes: WorkerNode[]): { edges: number; cptEntries: number } {
+function countStats(nodes: WorkerNode[]): {
+  edges: number;
+  cptEntries: number;
+} {
   let edges = 0;
   let cptEntries = 0;
 
@@ -39,10 +45,12 @@ function createChain(nodeCount: number): WorkerNode[] {
       nodes.push(createNode(`n${i}`, [{ parentStates: {}, probability: 0.6 }]));
     } else {
       const parentId = `n${i - 1}`;
-      nodes.push(createNode(`n${i}`, [
-        { parentStates: { [parentId]: true }, probability: 0.7 },
-        { parentStates: { [parentId]: false }, probability: 0.3 },
-      ]));
+      nodes.push(
+        createNode(`n${i}`, [
+          { parentStates: { [parentId]: true }, probability: 0.7 },
+          { parentStates: { [parentId]: false }, probability: 0.3 },
+        ]),
+      );
     }
   }
 
@@ -58,10 +66,18 @@ function createNetwork(nodeCount: number, avgParents: number): WorkerNode[] {
   }
 
   for (let i = numRoots; i < nodeCount; i++) {
-    const numParents = Math.max(1, Math.min(avgParents - 1 + (i % 3), nodes.length));
+    const numParents = Math.max(
+      1,
+      Math.min(avgParents - 1 + (i % 3), nodes.length),
+    );
 
-    const availableParents = nodes.slice(Math.max(0, nodes.length - Math.min(10, nodes.length)));
-    const selectedParents = availableParents.slice(0, Math.min(numParents, availableParents.length));
+    const availableParents = nodes.slice(
+      Math.max(0, nodes.length - Math.min(10, nodes.length)),
+    );
+    const selectedParents = availableParents.slice(
+      0,
+      Math.min(numParents, availableParents.length),
+    );
 
     const cptEntries = [];
     const targetCptCount = numParents * 2;
@@ -102,43 +118,70 @@ const mediumSparseStats = countStats(mediumSparseNetwork);
 const mediumDenseStats = countStats(mediumDenseNetwork);
 
 describe("Node scaling (4x edges/node, 100k samples)", () => {
-  bench(`10 nodes (${(smallStats.cptEntries / 10).toFixed(1)} CPT/node)`, () => {
-    wasm.compute_marginals(smallNetwork, 100000);
-  });
+  bench(
+    `10 nodes (${(smallStats.cptEntries / 10).toFixed(1)} CPT/node)`,
+    () => {
+      wasm.compute_marginals(smallNetwork, 100000);
+    },
+  );
 
-  bench(`30 nodes (${(mediumStats.cptEntries / 30).toFixed(1)} CPT/node)`, () => {
-    wasm.compute_marginals(mediumNetwork, 100000);
-  });
+  bench(
+    `30 nodes (${(mediumStats.cptEntries / 30).toFixed(1)} CPT/node)`,
+    () => {
+      wasm.compute_marginals(mediumNetwork, 100000);
+    },
+  );
 
-  bench(`100 nodes (${(largeStats.cptEntries / 100).toFixed(1)} CPT/node)`, () => {
-    wasm.compute_marginals(largeNetwork, 100000);
-  });
+  bench(
+    `100 nodes (${(largeStats.cptEntries / 100).toFixed(1)} CPT/node)`,
+    () => {
+      wasm.compute_marginals(largeNetwork, 100000);
+    },
+  );
 });
 
 describe("Edge density scaling (30 nodes, 100k samples)", () => {
-  bench(`1x edges/node (${(mediumSparseStats.cptEntries / 30).toFixed(1)} CPT/node)`, () => {
-    wasm.compute_marginals(mediumSparseNetwork, 100000);
-  });
+  bench(
+    `1x edges/node (${(mediumSparseStats.cptEntries / 30).toFixed(1)} CPT/node)`,
+    () => {
+      wasm.compute_marginals(mediumSparseNetwork, 100000);
+    },
+  );
 
-  bench(`4x edges/node (${(mediumStats.cptEntries / 30).toFixed(1)} CPT/node)`, () => {
-    wasm.compute_marginals(mediumNetwork, 100000);
-  });
+  bench(
+    `4x edges/node (${(mediumStats.cptEntries / 30).toFixed(1)} CPT/node)`,
+    () => {
+      wasm.compute_marginals(mediumNetwork, 100000);
+    },
+  );
 
-  bench(`8x edges/node (${(mediumDenseStats.cptEntries / 30).toFixed(1)} CPT/node)`, () => {
-    wasm.compute_marginals(mediumDenseNetwork, 100000);
-  });
+  bench(
+    `8x edges/node (${(mediumDenseStats.cptEntries / 30).toFixed(1)} CPT/node)`,
+    () => {
+      wasm.compute_marginals(mediumDenseNetwork, 100000);
+    },
+  );
 });
 
 describe("Sample count scaling (30 nodes, 4x edges/node)", () => {
-  bench(`10k samples (${(mediumStats.cptEntries / 30).toFixed(1)} CPT/node)`, () => {
-    wasm.compute_marginals(mediumNetwork, 10000);
-  });
+  bench(
+    `10k samples (${(mediumStats.cptEntries / 30).toFixed(1)} CPT/node)`,
+    () => {
+      wasm.compute_marginals(mediumNetwork, 10000);
+    },
+  );
 
-  bench(`100k samples (${(mediumStats.cptEntries / 30).toFixed(1)} CPT/node)`, () => {
-    wasm.compute_marginals(mediumNetwork, 100000);
-  });
+  bench(
+    `100k samples (${(mediumStats.cptEntries / 30).toFixed(1)} CPT/node)`,
+    () => {
+      wasm.compute_marginals(mediumNetwork, 100000);
+    },
+  );
 
-  bench(`1M samples (${(mediumStats.cptEntries / 30).toFixed(1)} CPT/node)`, () => {
-    wasm.compute_marginals(mediumNetwork, 1000000);
-  });
+  bench(
+    `1M samples (${(mediumStats.cptEntries / 30).toFixed(1)} CPT/node)`,
+    () => {
+      wasm.compute_marginals(mediumNetwork, 1000000);
+    },
+  );
 });

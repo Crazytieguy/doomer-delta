@@ -16,6 +16,7 @@ export default tseslint.config(
       "playwright.config.ts",
       "e2e/**/*.ts",
       "wasm-inference/pkg/**",
+      ".llms-fetch-mcp/**",
     ],
   },
   {

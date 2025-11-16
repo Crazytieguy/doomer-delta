@@ -13,6 +13,10 @@
     "convex": {
       "command": "pnpm",
       "args": ["convex", "mcp", "start"]
+    },
+    "llms-fetch": {
+      "command": "npx",
+      "args": ["-y", "llms-fetch-mcp"]
     }
   }
 }

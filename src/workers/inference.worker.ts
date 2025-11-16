@@ -1,8 +1,5 @@
 import type { Id } from "../../convex/_generated/dataModel";
-import {
-  workerRequestSchema,
-  type WorkerNode,
-} from "../types/workerMessages";
+import { workerRequestSchema, type WorkerNode } from "../types/workerMessages";
 import * as wasm from "../../wasm-inference/pkg";
 
 const DEFAULT_NUM_SAMPLES = 100000;
@@ -23,11 +20,10 @@ function computeSensitivity(
   targetNodeId: Id<"nodes">,
   numSamples: number = SENSITIVITY_NUM_SAMPLES,
 ): Map<Id<"nodes">, number> {
-  return wasm.compute_sensitivity(
-    nodes,
-    targetNodeId,
-    numSamples,
-  ) as Map<Id<"nodes">, number>;
+  return wasm.compute_sensitivity(nodes, targetNodeId, numSamples) as Map<
+    Id<"nodes">,
+    number
+  >;
 }
 
 export { computeMarginalProbabilities, computeSensitivity };
@@ -48,7 +44,10 @@ if (typeof self !== "undefined" && "onmessage" in self) {
           probabilities,
         });
       } else if (message.type === "COMPUTE_SENSITIVITY") {
-        const sensitivities = computeSensitivity(message.nodes, message.targetNodeId);
+        const sensitivities = computeSensitivity(
+          message.nodes,
+          message.targetNodeId,
+        );
 
         self.postMessage({
           type: "SENSITIVITY_COMPLETE",

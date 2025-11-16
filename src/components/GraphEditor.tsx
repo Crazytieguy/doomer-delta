@@ -192,7 +192,7 @@ function GraphEditorInner({
 
   const probabilisticFingerprint = useMemo(
     () => computeProbabilisticFingerprint(dbNodes),
-    [dbNodes]
+    [dbNodes],
   );
 
   useEffect(() => {

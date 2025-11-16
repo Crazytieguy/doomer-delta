@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { Id } from "../../convex/_generated/dataModel";
-import {
-  workerResponseSchema,
-  type WorkerNode,
-} from "../types/workerMessages";
+import { workerResponseSchema, type WorkerNode } from "../types/workerMessages";
 import { computeProbabilisticFingerprint } from "@/lib/probabilisticFingerprint";
 
 export interface SensitivityState {
@@ -50,8 +47,12 @@ class LRUCache<K, V> {
   }
 }
 
-const marginalsCache = new LRUCache<string, Map<Id<"nodes">, number>>(MAX_CACHE_SIZE);
-const sensitivityCache = new LRUCache<string, Map<Id<"nodes">, number>>(MAX_CACHE_SIZE);
+const marginalsCache = new LRUCache<string, Map<Id<"nodes">, number>>(
+  MAX_CACHE_SIZE,
+);
+const sensitivityCache = new LRUCache<string, Map<Id<"nodes">, number>>(
+  MAX_CACHE_SIZE,
+);
 
 let sharedWorker: Worker | null = null;
 let sharedWorkerReady = false;
@@ -60,7 +61,7 @@ function getSharedWorker(): Worker {
   if (!sharedWorker) {
     sharedWorker = new Worker(
       new URL("../workers/inference.worker.ts", import.meta.url),
-      { type: "module" }
+      { type: "module" },
     );
   }
   return sharedWorker;
@@ -118,7 +119,10 @@ export function useInferenceWorker() {
           if (message.requestId !== currentMarginalsRequestId.current) return;
 
           if (pendingMarginalsCacheKey.current) {
-            marginalsCache.set(pendingMarginalsCacheKey.current, message.probabilities as Map<Id<"nodes">, number>);
+            marginalsCache.set(
+              pendingMarginalsCacheKey.current,
+              message.probabilities as Map<Id<"nodes">, number>,
+            );
             pendingMarginalsCacheKey.current = null;
           }
 
@@ -131,7 +135,10 @@ export function useInferenceWorker() {
           if (message.requestId !== currentSensitivityRequestId.current) return;
 
           if (pendingSensitivityCacheKey.current) {
-            sensitivityCache.set(pendingSensitivityCacheKey.current, message.sensitivities as Map<Id<"nodes">, number>);
+            sensitivityCache.set(
+              pendingSensitivityCacheKey.current,
+              message.sensitivities as Map<Id<"nodes">, number>,
+            );
             pendingSensitivityCacheKey.current = null;
           }
 
@@ -148,7 +155,9 @@ export function useInferenceWorker() {
               isLoading: false,
               error: message.error,
             }));
-          } else if (message.requestId === currentSensitivityRequestId.current) {
+          } else if (
+            message.requestId === currentSensitivityRequestId.current
+          ) {
             pendingSensitivityCacheKey.current = null;
             setSensitivityState((prev) => ({
               ...prev,
@@ -263,7 +272,7 @@ export function useInferenceWorker() {
         messageQueue.current.push(message);
       }
     },
-    []
+    [],
   );
 
   return {

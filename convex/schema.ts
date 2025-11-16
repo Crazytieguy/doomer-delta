@@ -16,9 +16,11 @@ export default defineSchema({
     ownerId: v.id("users"),
     outputNodeId: v.optional(v.id("nodes")),
     isPublic: v.boolean(),
+    forkedFrom: v.optional(v.id("models")),
+    uniqueForkers: v.optional(v.number()),
   })
     .index("by_ownerId", ["ownerId"])
-    .index("by_isPublic", ["isPublic"]),
+    .index("by_isPublic_uniqueForkers", ["isPublic", "uniqueForkers"]),
 
   nodes: defineTable({
     modelId: v.id("models"),

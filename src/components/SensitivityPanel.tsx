@@ -35,7 +35,7 @@ export function SensitivityPanel({
 
   const probabilisticFingerprint = useMemo(
     () => computeProbabilisticFingerprint(nodes),
-    [nodes]
+    [nodes],
   );
 
   useEffect(() => {
@@ -58,9 +58,7 @@ export function SensitivityPanel({
 
   if (sensitivityState.error) {
     return (
-      <div className="text-sm text-error">
-        Error: {sensitivityState.error}
-      </div>
+      <div className="text-sm text-error">Error: {sensitivityState.error}</div>
     );
   }
 
@@ -121,8 +119,10 @@ export function SensitivityPanel({
                 <span
                   className={`text-xs font-semibold tabular-nums ${isPositive ? "text-success" : "text-error"}`}
                 >
-                  {formatProbabilityAsPercentage(Math.abs(sensitivity))
-                    .replace(/^/, sensitivity >= 0 ? "+" : "-")}
+                  {formatProbabilityAsPercentage(Math.abs(sensitivity)).replace(
+                    /^/,
+                    sensitivity >= 0 ? "+" : "-",
+                  )}
                 </span>
               </div>
               <div className="w-full bg-base-300/40 rounded-full h-2">

@@ -12,7 +12,10 @@ import { useEffect, useMemo, useState } from "react";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { CPTEntry } from "../../convex/shared/cptValidation";
 import { validateCPTEntries } from "../../convex/shared/cptValidation";
-import { formatProbability, formatProbabilityAsPercentage } from "@/lib/formatProbability";
+import {
+  formatProbability,
+  formatProbabilityAsPercentage,
+} from "@/lib/formatProbability";
 
 interface CPTEditorProps {
   cptEntries: CPTEntry[];
@@ -57,7 +60,10 @@ export function CPTEditor({
 
   useEffect(() => {
     if (onValidationChange && !isLocked) {
-      onValidationChange(validation.valid, validation.valid ? null : validation.error);
+      onValidationChange(
+        validation.valid,
+        validation.valid ? null : validation.error,
+      );
     }
   }, [isLocked, onValidationChange, validation]);
 
@@ -129,7 +135,11 @@ export function CPTEditor({
       // LOCKED MODE: Auto-complement behavior
       // Case 1: any → true/false (create complement)
       if (oldValue === null && value !== null) {
-        const complementRow = findComplementRow(newEntries, entryIndex, parentId);
+        const complementRow = findComplementRow(
+          newEntries,
+          entryIndex,
+          parentId,
+        );
 
         // Update current row
         newEntries[entryIndex] = {
@@ -152,7 +162,11 @@ export function CPTEditor({
       }
       // Case 2: true ↔ false (swap complement)
       else if (oldValue !== null && value !== null && oldValue !== value) {
-        const complementRow = findComplementRow(newEntries, entryIndex, parentId);
+        const complementRow = findComplementRow(
+          newEntries,
+          entryIndex,
+          parentId,
+        );
 
         // Update current row
         newEntries[entryIndex] = {
@@ -176,7 +190,11 @@ export function CPTEditor({
       }
       // Case 3: true/false → any (delete complement)
       else if (oldValue !== null && value === null) {
-        const complementRow = findComplementRow(newEntries, entryIndex, parentId);
+        const complementRow = findComplementRow(
+          newEntries,
+          entryIndex,
+          parentId,
+        );
 
         // Update current row
         newEntries[entryIndex] = {
@@ -338,7 +356,8 @@ export function CPTEditor({
             <span className="label-text">Base Probability</span>
           </label>
           <p className="text-lg font-semibold">
-            {formatProbabilityAsPercentage(probability)} ({formatProbability(probability)})
+            {formatProbabilityAsPercentage(probability)} (
+            {formatProbability(probability)})
           </p>
           <span className="label-text-alt opacity-70">
             Prior probability (no parents)
@@ -615,7 +634,8 @@ export function CPTEditor({
                     currentValue !== null &&
                     findComplementRow(localEntries, entryIndex, parentId) !==
                       null;
-                  const isDisabled = isLocked && currentValue !== null && !hasComplement;
+                  const isDisabled =
+                    isLocked && currentValue !== null && !hasComplement;
                   const displayValue =
                     currentValue === null
                       ? "any"

@@ -8,9 +8,7 @@ interface NodeWithCPT {
   cptEntries: CPTEntry[];
 }
 
-export function computeProbabilisticFingerprint(
-  nodes: NodeWithCPT[]
-): string {
+export function computeProbabilisticFingerprint(nodes: NodeWithCPT[]): string {
   return nodes
     .slice()
     .sort((a, b) => a._id.localeCompare(b._id))

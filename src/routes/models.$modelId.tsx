@@ -55,24 +55,24 @@ function ModelDetailPage() {
 
   const updateNode = useMutation(api.nodes.update);
   const deleteNode = useMutation(api.nodes.remove);
-  const togglePublic = useMutation(api.models.togglePublic).withOptimisticUpdate(
-    (localStore, args) => {
-      const currentModel = localStore.getQuery(api.models.get, {
-        id: args.id,
-      });
-      if (currentModel) {
-        localStore.setQuery(
-          api.models.get,
-          { id: args.id },
-          {
-            ...currentModel,
-            isPublic: !currentModel.isPublic,
-          },
-        );
-      }
-    },
-  );
-  const cloneModel = useMutation(api.models.clone);
+  const togglePublic = useMutation(
+    api.models.togglePublic,
+  ).withOptimisticUpdate((localStore, args) => {
+    const currentModel = localStore.getQuery(api.models.get, {
+      id: args.id,
+    });
+    if (currentModel) {
+      localStore.setQuery(
+        api.models.get,
+        { id: args.id },
+        {
+          ...currentModel,
+          isPublic: !currentModel.isPublic,
+        },
+      );
+    }
+  });
+  const forkModel = useMutation(api.models.fork);
   const updateModel = useMutation(api.models.update).withOptimisticUpdate(
     (localStore, args) => {
       const currentModel = localStore.getQuery(api.models.get, {
@@ -154,11 +154,11 @@ function ModelDetailPage() {
     }
   };
 
-  const handleClone = async () => {
+  const handleFork = async () => {
     if (!model) return;
     try {
-      const newModelId = await cloneModel({ id: modelId as Id<"models"> });
-      showSuccess("Model cloned successfully");
+      const newModelId = await forkModel({ id: modelId as Id<"models"> });
+      showSuccess("Model forked successfully");
       void navigate({
         to: "/models/$modelId",
         params: { modelId: newModelId },
@@ -194,14 +194,11 @@ function ModelDetailPage() {
         {isReadOnly ? (
           <>
             <div className="flex gap-4 items-start justify-between mb-2">
-              <div className="flex items-baseline gap-3">
-                <h1 className="text-4xl font-bold mt-0 mb-0">{modelName}</h1>
-                {!isOwner && !model.isPublic && (
-                  <span className="badge badge-accent">Shared with you</span>
-                )}
-              </div>
-              <div className="not-prose flex gap-2 shrink-0">
-                {isOwner && (
+              <h1 className="text-4xl font-bold mt-0 mb-0 flex-1">
+                {modelName}
+              </h1>
+              <div className="not-prose flex gap-2 shrink-0 items-start">
+                {isOwner ? (
                   <>
                     <button
                       className="btn btn-sm btn-accent"
@@ -218,6 +215,15 @@ function ModelDetailPage() {
                       <ShareDialog modelId={modelId as Id<"models">} />
                     )}
                   </>
+                ) : (
+                  <span className="badge badge-accent h-8 gap-1">
+                    {model.isPublic ? (
+                      <Globe className="w-4 h-4" />
+                    ) : (
+                      <GlobeLock className="w-4 h-4" />
+                    )}
+                    {model.isPublic ? "Public" : "Private"}
+                  </span>
                 )}
                 <button
                   className="btn btn-sm btn-outline"
@@ -229,19 +235,29 @@ function ModelDetailPage() {
                 <div
                   className="tooltip"
                   data-tip={
-                    !isAuthenticated ? "Sign in to clone this model" : undefined
+                    !isAuthenticated ? "Sign in to fork this model" : undefined
                   }
                 >
                   <button
-                    className="btn btn-sm btn-secondary"
-                    onClick={() => void handleClone()}
+                    className="btn btn-sm btn-secondary gap-1"
+                    onClick={() => void handleFork()}
                     disabled={!isAuthenticated}
                   >
                     <GitFork className="w-4 h-4" />
-                    Clone
+                    Fork
+                    {(model.uniqueForkers ?? 0) > 0 && (
+                      <span className="badge badge-info badge-sm">
+                        {model.uniqueForkers}
+                      </span>
+                    )}
                   </button>
                 </div>
               </div>
+            </div>
+            <div className="flex items-center gap-2 text-sm opacity-60 mt-0 mb-2">
+              <span>by {isOwner ? "You" : model.ownerName}</span>
+              <span>•</span>
+              <span>{new Date(model._creationTime).toLocaleDateString()}</span>
             </div>
             {modelDescription ? (
               <p className="opacity-70 whitespace-pre-wrap mt-0">
@@ -261,11 +277,11 @@ function ModelDetailPage() {
             <div className="flex gap-4 items-start justify-between mb-2">
               <input
                 type="text"
-                className="input input-ghost text-4xl font-bold w-full px-0 mb-0"
+                className="input input-ghost text-4xl font-bold w-full px-0 mb-0 flex-1"
                 value={modelName}
                 onChange={(e) => handleModelNameChange(e.target.value)}
               />
-              <div className="not-prose flex gap-2 shrink-0">
+              <div className="not-prose flex gap-2 shrink-0 items-start">
                 {isOwner && (
                   <>
                     <button
@@ -294,16 +310,21 @@ function ModelDetailPage() {
                 <div
                   className="tooltip"
                   data-tip={
-                    !isAuthenticated ? "Sign in to clone this model" : undefined
+                    !isAuthenticated ? "Sign in to fork this model" : undefined
                   }
                 >
                   <button
-                    className="btn btn-sm btn-secondary"
-                    onClick={() => void handleClone()}
+                    className="btn btn-sm btn-secondary gap-1"
+                    onClick={() => void handleFork()}
                     disabled={!isAuthenticated}
                   >
                     <GitFork className="w-4 h-4" />
-                    Clone
+                    Fork
+                    {(model.uniqueForkers ?? 0) > 0 && (
+                      <span className="badge badge-info badge-sm">
+                        {model.uniqueForkers}
+                      </span>
+                    )}
                   </button>
                 </div>
               </div>

@@ -55,6 +55,7 @@ Always follow the guidelines in this file, unless explicitly told otherwise by t
 - System tables: access `_scheduled_functions` and `_storage` with `ctx.db.system.get` and `ctx.db.system.query`
 - Default query order is ascending by `_creationTime`
 - Transactions are per-mutation - can't span multiple mutations. Calling multiple queries/mutation in a single action may introduce race conditions.
+- All convex mutations are atomic with OCC, they have no race conditions
 - Hot reload issues: Restart if schema changes don't apply or types are stuck
 - Use `import { Doc, Id } from "./_generated/dataModel";` and `v.id("table")` for type safety.
 - Add `"use node";` to the top of files containing actions that use Node.js built-in modules (can't contain queries and mutations)

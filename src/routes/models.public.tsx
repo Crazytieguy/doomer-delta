@@ -1,9 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { usePaginatedQuery } from "convex/react";
 import { convexQuery } from "@convex-dev/react-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Globe } from "lucide-react";
 import { api } from "../../convex/_generated/api";
+import { ModelCard } from "../components/ModelCard";
 
 const publicModelsQueryOptions = convexQuery(api.models.listPublicInitial, {});
 
@@ -17,13 +18,14 @@ export const Route = createFileRoute("/models/public")({
 function PublicModelsPage() {
   const { data: initialModels } = useSuspenseQuery(publicModelsQueryOptions);
 
-  const { results: paginatedResults, status, loadMore } = usePaginatedQuery(
-    api.models.listPublic,
-    {},
-    { initialNumItems: 12 },
-  );
+  const {
+    results: paginatedResults,
+    status,
+    loadMore,
+  } = usePaginatedQuery(api.models.listPublic, {}, { initialNumItems: 12 });
 
-  const displayModels = status !== "LoadingFirstPage" ? paginatedResults : initialModels;
+  const displayModels =
+    status !== "LoadingFirstPage" ? paginatedResults : initialModels;
 
   return (
     <div>
@@ -42,25 +44,15 @@ function PublicModelsPage() {
         <>
           <div className="not-prose grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {displayModels.map((model) => (
-              <Link
+              <ModelCard
                 key={model._id}
-                to="/models/$modelId"
-                params={{ modelId: model._id }}
-                className="card card-border bg-gradient-to-br from-base-200 via-base-200 to-base-300/30 hover:shadow-lg transition-shadow duration-300"
-              >
-                <div className="card-body">
-                  <h3 className="card-title">{model.name}</h3>
-                  {model.description && (
-                    <p className="text-sm opacity-70">{model.description}</p>
-                  )}
-                  <div className="flex justify-between items-center text-xs opacity-50 mt-2">
-                    <span>by {model.ownerName}</span>
-                    <span>
-                      {new Date(model._creationTime).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-              </Link>
+                modelId={model._id}
+                name={model.name}
+                description={model.description}
+                ownerName={model.ownerName}
+                creationTime={model._creationTime}
+                uniqueForkers={model.uniqueForkers}
+              />
             ))}
           </div>
 
