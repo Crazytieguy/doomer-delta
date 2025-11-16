@@ -355,7 +355,7 @@ export function CPTEditor({
           <label className="label">
             <span className="label-text">Base Probability</span>
           </label>
-          <p className="text-lg font-semibold">
+          <p className="text-lg font-medium font-mono tabular-nums">
             {formatProbabilityAsPercentage(probability)} (
             {formatProbability(probability)})
           </p>
@@ -376,7 +376,7 @@ export function CPTEditor({
           step="0.01"
           min="0"
           max="1"
-          className="input w-full"
+          className="input w-full font-mono"
           value={probability}
           onChange={(e) =>
             handleProbabilityChange(0, parseFloat(e.target.value))
@@ -422,7 +422,7 @@ export function CPTEditor({
                       </td>
                     );
                   })}
-                  <td className="font-semibold">
+                  <td className="font-semibold font-mono tabular-nums">
                     {formatProbabilityAsPercentage(entry.probability)}
                   </td>
                 </tr>
@@ -646,7 +646,7 @@ export function CPTEditor({
                   return (
                     <td key={parentId} className="border-r border-base-300/30">
                       <select
-                        className="select select-xs w-full min-w-12 px-2 [background-position:calc(100%_-_10px)_calc(1px_+_50%),calc(100%_-_6.1px)_calc(1px_+_50%)] disabled:bg-base-100 disabled:text-base-content/80 disabled:[background-image:none]"
+                        className="select select-xs w-full min-w-16 px-2 font-mono [background-position:calc(100%_-_10px)_calc(1px_+_50%),calc(100%_-_6.1px)_calc(1px_+_50%)] disabled:bg-base-100 disabled:text-base-content/80 disabled:[background-image:none]"
                         value={displayValue}
                         onChange={(e) => {
                           const value =
@@ -671,7 +671,7 @@ export function CPTEditor({
                     step="0.01"
                     min="0"
                     max="1"
-                    className="input input-xs w-20"
+                    className="input input-xs w-20 font-mono"
                     value={entry.probability}
                     onChange={(e) =>
                       handleProbabilityChange(

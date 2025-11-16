@@ -1,35 +1,37 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500&family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&display=swap');
+
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 @plugin "daisyui";
 
 @plugin "daisyui/theme" {
-  name: "halloween-light";
+  name: "abyss-light";
   default: true;
   prefersdark: false;
   color-scheme: "light";
-  --color-base-100: oklch(98% 0.002 56.043);
-  --color-base-200: oklch(95% 0.003 49.25);
-  --color-base-300: oklch(88% 0.004 56.043);
-  --color-base-content: oklch(20% 0.01 56.043);
-  --color-primary: oklch(65% 0.18 60.62);
-  --color-primary-content: oklch(98% 0.002 60.62);
-  --color-secondary: oklch(55% 0.22 305.03);
-  --color-secondary-content: oklch(98% 0.002 305.03);
-  --color-accent: oklch(55% 0.19 136.073);
-  --color-accent-content: oklch(98% 0.002 136.073);
-  --color-neutral: oklch(85% 0.01 65.681);
-  --color-neutral-content: oklch(20% 0.02 65.681);
-  --color-info: oklch(60% 0.19 262.88);
-  --color-info-content: oklch(98% 0.002 262.88);
-  --color-success: oklch(58% 0.15 149.213);
-  --color-success-content: oklch(98% 0.002 149.213);
-  --color-warning: oklch(62% 0.14 58.318);
-  --color-warning-content: oklch(15% 0.031 58.318);
-  --color-error: oklch(62% 0.18 27.33);
-  --color-error-content: oklch(98% 0.002 27.33);
-  --radius-selector: 1rem;
-  --radius-field: 0.5rem;
-  --radius-box: 1rem;
+  --color-base-100: oklch(98% 0.02 209);
+  --color-base-200: oklch(95% 0.02 209);
+  --color-base-300: oklch(90% 0.02 209);
+  --color-base-content: oklch(20% 0.08 209);
+  --color-primary: oklch(50% 0.2653 120);
+  --color-primary-content: oklch(98% 0.02 120);
+  --color-secondary: oklch(43.27% 0.0764 298.3);
+  --color-secondary-content: oklch(98% 0.02 298.3);
+  --color-accent: oklch(65% 0.08 20);
+  --color-accent-content: oklch(98% 0.02 20);
+  --color-neutral: oklch(88% 0.02 209);
+  --color-neutral-content: oklch(20% 0.08 209);
+  --color-info: oklch(50% 0.16 232.661);
+  --color-info-content: oklch(98% 0.02 232.661);
+  --color-success: oklch(45% 0.209 151.711);
+  --color-success-content: oklch(98% 0.02 151.711);
+  --color-warning: oklch(55% 0.1962 84.62);
+  --color-warning-content: oklch(98% 0.02 84.62);
+  --color-error: oklch(50% 0.1985 24.22);
+  --color-error-content: oklch(98% 0.02 24.22);
+  --radius-selector: 0.5rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.25rem;
   --size-selector: 0.25rem;
   --size-field: 0.25rem;
   --border: 1px;
@@ -38,33 +40,33 @@
 }
 
 @plugin "daisyui/theme" {
-  name: "halloween";
+  name: "abyss";
   default: false;
   prefersdark: true;
   color-scheme: "dark";
-  --color-base-100: oklch(21% 0.006 56.043);
-  --color-base-200: oklch(14% 0.004 49.25);
-  --color-base-300: oklch(0% 0 0);
-  --color-base-content: oklch(84.955% 0 0);
-  --color-primary: oklch(77.48% 0.204 60.62);
-  --color-primary-content: oklch(19.693% 0.004 196.779);
-  --color-secondary: oklch(45.98% 0.248 305.03);
-  --color-secondary-content: oklch(89.196% 0.049 305.03);
-  --color-accent: oklch(64.8% 0.223 136.073);
-  --color-accent-content: oklch(0% 0 0);
-  --color-neutral: oklch(24.371% 0.046 65.681);
-  --color-neutral-content: oklch(84.874% 0.009 65.681);
-  --color-info: oklch(54.615% 0.215 262.88);
-  --color-info-content: oklch(90.923% 0.043 262.88);
-  --color-success: oklch(62.705% 0.169 149.213);
-  --color-success-content: oklch(12.541% 0.033 149.213);
-  --color-warning: oklch(66.584% 0.157 58.318);
-  --color-warning-content: oklch(13.316% 0.031 58.318);
-  --color-error: oklch(65.72% 0.199 27.33);
-  --color-error-content: oklch(13.144% 0.039 27.33);
-  --radius-selector: 1rem;
-  --radius-field: 0.5rem;
-  --radius-box: 1rem;
+  --color-base-100: oklch(20% 0.08 209);
+  --color-base-200: oklch(15% 0.08 209);
+  --color-base-300: oklch(10% 0.08 209);
+  --color-base-content: oklch(90% 0.076 70.697);
+  --color-primary: oklch(75% 0.2653 120);
+  --color-primary-content: oklch(20% 0.08 209);
+  --color-secondary: oklch(83.27% 0.0764 298.3);
+  --color-secondary-content: oklch(43.27% 0.0764 298.3);
+  --color-accent: oklch(43% 0 0);
+  --color-accent-content: oklch(98% 0 0);
+  --color-neutral: oklch(30% 0.08 209);
+  --color-neutral-content: oklch(90% 0.076 70.697);
+  --color-info: oklch(74% 0.16 232.661);
+  --color-info-content: oklch(29% 0.066 243.157);
+  --color-success: oklch(79% 0.209 151.711);
+  --color-success-content: oklch(26% 0.065 152.934);
+  --color-warning: oklch(84.8% 0.1962 84.62);
+  --color-warning-content: oklch(44.8% 0.1962 84.62);
+  --color-error: oklch(65% 0.1985 24.22);
+  --color-error-content: oklch(27% 0.1985 24.22);
+  --radius-selector: 0.5rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.25rem;
   --size-selector: 0.25rem;
   --size-field: 0.25rem;
   --border: 1px;
@@ -72,9 +74,21 @@
   --noise: 0;
 }
 
-/* Custom font family is preserved */
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-feature-settings: "tnum";
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.font-mono, code, pre, [class*="tabular"] {
+  font-family: 'IBM Plex Mono', 'Courier New', monospace;
+  font-weight: 500;
+  font-style: normal;
 }
 
 /* ReactFlow theming to match daisyUI */
