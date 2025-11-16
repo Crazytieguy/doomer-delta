@@ -313,7 +313,7 @@ function ModelDetailPage() {
                     <GitFork className="w-4 h-4" />
                     Fork
                     {(model.uniqueForkers ?? 0) > 0 && (
-                      <span className="badge badge-info badge-sm font-mono tabular-nums">
+                      <span className="badge badge-neutral badge-sm font-mono tabular-nums">
                         {model.uniqueForkers}
                       </span>
                     )}
@@ -388,7 +388,7 @@ function ModelDetailPage() {
                     <GitFork className="w-4 h-4" />
                     Fork
                     {(model.uniqueForkers ?? 0) > 0 && (
-                      <span className="badge badge-info badge-sm font-mono tabular-nums">
+                      <span className="badge badge-neutral badge-sm font-mono tabular-nums">
                         {model.uniqueForkers}
                       </span>
                     )}
