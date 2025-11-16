@@ -60,7 +60,7 @@ function ProbabilityNode({ data }: NodeProps) {
   const label = data.label as string;
 
   return (
-    <div className="px-5 py-3 shadow-md rounded-lg bg-primary/15 border-2 border-base-300/70 transition-all duration-200 hover:shadow-lg">
+    <div className="px-5 py-3 shadow-md rounded-lg bg-primary/15 border-2 border-base-300/70 transition-all duration-200 hover:shadow-lg hover:border-primary/30">
       <Handle type="target" position={Position.Top} className="!bg-accent" />
       <div className="text-center">
         <div className="font-medium text-base text-base-content leading-tight">
