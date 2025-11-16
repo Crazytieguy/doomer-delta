@@ -532,7 +532,9 @@ function GraphEditorInner({
             <button
               className="btn btn-sm btn-ghost gap-1"
               onClick={onToggleFullScreen}
-              aria-label={isFullScreen ? "Exit full screen" : "Enter full screen"}
+              aria-label={
+                isFullScreen ? "Exit full screen" : "Enter full screen"
+              }
             >
               {isFullScreen ? (
                 <>

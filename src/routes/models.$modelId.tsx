@@ -256,195 +256,259 @@ function ModelDetailPage() {
           </div>
         </div>
       )}
-      <div className={`flex flex-col ${isFullScreen ? "hidden" : "h-[calc(100vh-7rem)]"}`}>
+      <div
+        className={`flex flex-col ${isFullScreen ? "hidden" : "h-[calc(100vh-7rem)]"}`}
+      >
         <div className="relative z-10">
-        {isReadOnly ? (
-          <>
-            <div className="flex gap-4 items-start justify-between mb-2">
-              <h1 className="text-4xl font-bold mt-0 mb-0 flex-1">
-                {modelName}
-              </h1>
-              <div className="not-prose flex gap-2 shrink-0 items-start">
-                {isOwner ? (
-                  <>
-                    <button
-                      className="btn btn-sm btn-accent"
-                      onClick={() => void handleTogglePublic()}
-                    >
-                      {model.isPublic ? (
-                        <GlobeLock className="w-4 h-4" />
-                      ) : (
-                        <Globe className="w-4 h-4" />
+          {isReadOnly ? (
+            <>
+              <div className="flex gap-4 items-start justify-between mb-2">
+                <h1 className="text-4xl font-bold mt-0 mb-0 flex-1">
+                  {modelName}
+                </h1>
+                <div className="not-prose flex gap-2 shrink-0 items-start">
+                  {isOwner ? (
+                    <>
+                      <button
+                        className="btn btn-sm btn-accent"
+                        onClick={() => void handleTogglePublic()}
+                      >
+                        {model.isPublic ? (
+                          <GlobeLock className="w-4 h-4" />
+                        ) : (
+                          <Globe className="w-4 h-4" />
+                        )}
+                        {model.isPublic ? "Make Private" : "Make Public"}
+                      </button>
+                      {!model.isPublic && (
+                        <ShareDialog modelId={modelId as Id<"models">} />
                       )}
-                      {model.isPublic ? "Make Private" : "Make Public"}
-                    </button>
-                    {!model.isPublic && (
-                      <ShareDialog modelId={modelId as Id<"models">} />
-                    )}
-                  </>
-                ) : (
-                  <span className="badge badge-accent h-8 gap-1">
-                    {model.isPublic ? (
-                      <Globe className="w-4 h-4" />
-                    ) : (
-                      <GlobeLock className="w-4 h-4" />
-                    )}
-                    {model.isPublic ? "Public" : "Private"}
-                  </span>
-                )}
-                <button
-                  className="btn btn-sm btn-outline"
-                  onClick={handleCopyLink}
-                >
-                  <Copy className="w-4 h-4" />
-                  Copy Link
-                </button>
-                <div
-                  className="tooltip"
-                  data-tip={
-                    !isAuthenticated ? "Sign in to fork this model" : undefined
-                  }
-                >
+                    </>
+                  ) : (
+                    <span className="badge badge-accent h-8 gap-1">
+                      {model.isPublic ? (
+                        <Globe className="w-4 h-4" />
+                      ) : (
+                        <GlobeLock className="w-4 h-4" />
+                      )}
+                      {model.isPublic ? "Public" : "Private"}
+                    </span>
+                  )}
                   <button
-                    className="btn btn-sm btn-secondary gap-1"
-                    onClick={() => void handleFork()}
-                    disabled={!isAuthenticated}
+                    className="btn btn-sm btn-outline"
+                    onClick={handleCopyLink}
                   >
-                    <GitFork className="w-4 h-4" />
-                    Fork
-                    {(model.uniqueForkers ?? 0) > 0 && (
-                      <span className="badge badge-neutral badge-sm font-mono tabular-nums">
-                        {model.uniqueForkers}
-                      </span>
-                    )}
+                    <Copy className="w-4 h-4" />
+                    Copy Link
                   </button>
+                  <div
+                    className="tooltip"
+                    data-tip={
+                      !isAuthenticated
+                        ? "Sign in to fork this model"
+                        : undefined
+                    }
+                  >
+                    <button
+                      className="btn btn-sm btn-secondary gap-1"
+                      onClick={() => void handleFork()}
+                      disabled={!isAuthenticated}
+                    >
+                      <GitFork className="w-4 h-4" />
+                      Fork
+                      {(model.uniqueForkers ?? 0) > 0 && (
+                        <span className="badge badge-neutral badge-sm font-mono tabular-nums">
+                          {model.uniqueForkers}
+                        </span>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2 text-sm opacity-60 mt-0 mb-2">
-              <span>by {isOwner ? "You" : model.ownerName}</span>
-              <span>•</span>
-              <span>{new Date(model._creationTime).toLocaleDateString()}</span>
-            </div>
-            {modelDescription ? (
-              <p className="opacity-70 whitespace-pre-wrap mt-0">
-                {modelDescription}
-              </p>
-            ) : (
-              <p className="opacity-50 italic mt-0">No description</p>
-            )}
-          </>
-        ) : (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void handleSaveModel();
-            }}
-          >
-            <div className="flex gap-4 items-start justify-between mb-2">
-              <input
-                type="text"
-                className="input input-ghost text-4xl font-bold w-full px-0 mb-0 flex-1"
-                value={modelName}
-                onChange={(e) => handleModelNameChange(e.target.value)}
-              />
-              <div className="not-prose flex gap-2 shrink-0 items-start">
-                {isOwner && (
-                  <>
-                    <button
-                      className="btn btn-sm btn-accent"
-                      onClick={() => void handleTogglePublic()}
-                    >
-                      {model.isPublic ? (
-                        <GlobeLock className="w-4 h-4" />
-                      ) : (
-                        <Globe className="w-4 h-4" />
-                      )}
-                      {model.isPublic ? "Make Private" : "Make Public"}
-                    </button>
-                    {!model.isPublic && (
-                      <ShareDialog modelId={modelId as Id<"models">} />
-                    )}
-                  </>
-                )}
-                <button
-                  className="btn btn-sm btn-outline"
-                  onClick={handleCopyLink}
-                >
-                  <Copy className="w-4 h-4" />
-                  Copy Link
-                </button>
-                <div
-                  className="tooltip"
-                  data-tip={
-                    !isAuthenticated ? "Sign in to fork this model" : undefined
-                  }
-                >
-                  <button
-                    className="btn btn-sm btn-secondary gap-1"
-                    onClick={() => void handleFork()}
-                    disabled={!isAuthenticated}
-                  >
-                    <GitFork className="w-4 h-4" />
-                    Fork
-                    {(model.uniqueForkers ?? 0) > 0 && (
-                      <span className="badge badge-neutral badge-sm font-mono tabular-nums">
-                        {model.uniqueForkers}
-                      </span>
-                    )}
-                  </button>
-                </div>
+              <div className="flex items-center gap-2 text-sm opacity-60 mt-0 mb-2">
+                <span>by {isOwner ? "You" : model.ownerName}</span>
+                <span>•</span>
+                <span>
+                  {new Date(model._creationTime).toLocaleDateString()}
+                </span>
               </div>
-            </div>
-            <div
-              className="grid mb-4 after:invisible after:whitespace-pre-wrap after:content-[attr(data-value)] after:[grid-area:1/1] after:text-sm after:border after:border-solid after:border-[#0000] after:[line-height:1.5] after:py-1"
-              data-value={modelDescription || " "}
+              {modelDescription ? (
+                <p className="opacity-70 whitespace-pre-wrap mt-0">
+                  {modelDescription}
+                </p>
+              ) : (
+                <p className="opacity-50 italic mt-0">No description</p>
+              )}
+            </>
+          ) : (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleSaveModel();
+              }}
             >
-              <textarea
-                className="textarea textarea-ghost w-full px-0 py-1 opacity-70 resize-none overflow-hidden [grid-area:1/1] [min-height:auto]"
-                style={{ lineHeight: 1.5 }}
-                rows={1}
-                placeholder="Add a description..."
-                value={modelDescription}
-                onChange={(e) => handleModelDescriptionChange(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    void handleSaveModel();
-                  }
-                }}
-              />
-            </div>
-            {hasModelChanges && (
-              <div className="flex gap-2 mt-2 mb-4">
-                <button
-                  type="submit"
-                  className="btn btn-primary btn-sm"
-                  disabled={!modelName.trim()}
-                >
-                  Save
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-outline btn-sm"
-                  onClick={handleCancelModel}
-                >
-                  Cancel
-                </button>
+              <div className="flex gap-4 items-start justify-between mb-2">
+                <input
+                  type="text"
+                  className="input input-ghost text-4xl font-bold w-full px-0 mb-0 flex-1"
+                  value={modelName}
+                  onChange={(e) => handleModelNameChange(e.target.value)}
+                />
+                <div className="not-prose flex gap-2 shrink-0 items-start">
+                  {isOwner && (
+                    <>
+                      <button
+                        className="btn btn-sm btn-accent"
+                        onClick={() => void handleTogglePublic()}
+                      >
+                        {model.isPublic ? (
+                          <GlobeLock className="w-4 h-4" />
+                        ) : (
+                          <Globe className="w-4 h-4" />
+                        )}
+                        {model.isPublic ? "Make Private" : "Make Public"}
+                      </button>
+                      {!model.isPublic && (
+                        <ShareDialog modelId={modelId as Id<"models">} />
+                      )}
+                    </>
+                  )}
+                  <button
+                    className="btn btn-sm btn-outline"
+                    onClick={handleCopyLink}
+                  >
+                    <Copy className="w-4 h-4" />
+                    Copy Link
+                  </button>
+                  <div
+                    className="tooltip"
+                    data-tip={
+                      !isAuthenticated
+                        ? "Sign in to fork this model"
+                        : undefined
+                    }
+                  >
+                    <button
+                      className="btn btn-sm btn-secondary gap-1"
+                      onClick={() => void handleFork()}
+                      disabled={!isAuthenticated}
+                    >
+                      <GitFork className="w-4 h-4" />
+                      Fork
+                      {(model.uniqueForkers ?? 0) > 0 && (
+                        <span className="badge badge-neutral badge-sm font-mono tabular-nums">
+                          {model.uniqueForkers}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                </div>
               </div>
-            )}
-          </form>
-        )}
+              <div
+                className="grid mb-4 after:invisible after:whitespace-pre-wrap after:content-[attr(data-value)] after:[grid-area:1/1] after:text-sm after:border after:border-solid after:border-[#0000] after:[line-height:1.5] after:py-1"
+                data-value={modelDescription || " "}
+              >
+                <textarea
+                  className="textarea textarea-ghost w-full px-0 py-1 opacity-70 resize-none overflow-hidden [grid-area:1/1] [min-height:auto]"
+                  style={{ lineHeight: 1.5 }}
+                  rows={1}
+                  placeholder="Add a description..."
+                  value={modelDescription}
+                  onChange={(e) => handleModelDescriptionChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      void handleSaveModel();
+                    }
+                  }}
+                />
+              </div>
+              {hasModelChanges && (
+                <div className="flex gap-2 mt-2 mb-4">
+                  <button
+                    type="submit"
+                    className="btn btn-primary btn-sm"
+                    disabled={!modelName.trim()}
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    onClick={handleCancelModel}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </form>
+          )}
         </div>
 
         <div className="not-prose flex flex-1 overflow-hidden shadow-[4px_4px_12px_rgba(0,0,0,0.15)] relative">
-        {/* Desktop layout with resizable panels */}
-        <PanelGroup
-          autoSaveId="model-editor-layout"
-          direction="horizontal"
-          className="hidden sm:flex w-full h-full"
-        >
-          <Panel id="graph" order={1}>
+          {/* Desktop layout with resizable panels */}
+          <PanelGroup
+            autoSaveId="model-editor-layout"
+            direction="horizontal"
+            className="hidden sm:flex w-full h-full"
+          >
+            <Panel id="graph" order={1}>
+              <GraphEditor
+                modelId={modelId as Id<"models">}
+                nodes={nodes}
+                selectedNode={selectedNode}
+                onNodeSelect={handleNodeSelect}
+                isReadOnly={isReadOnly}
+                isFullScreen={isFullScreen}
+                onToggleFullScreen={() => setIsFullScreen(!isFullScreen)}
+              />
+            </Panel>
+
+            {selectedNodeData && (
+              <>
+                <PanelResizeHandle className="w-1 bg-accent/35 hover:bg-secondary transition-colors" />
+                <Panel
+                  id="inspector"
+                  order={2}
+                  defaultSize={30}
+                  minSize={20}
+                  className="min-w-78"
+                >
+                  <NodeInspector
+                    key={selectedNode}
+                    node={selectedNodeData}
+                    allNodes={nodes}
+                    onClose={handleCloseSidebar}
+                    onUpdate={(updates) => {
+                      void (async () => {
+                        try {
+                          await updateNode({ id: selectedNode!, ...updates });
+                          showSuccess("Node updated successfully");
+                        } catch (error) {
+                          showError(error);
+                        }
+                      })();
+                    }}
+                    onDelete={() => {
+                      void (async () => {
+                        try {
+                          await deleteNode({ id: selectedNode! });
+                          handleCloseSidebar();
+                          showSuccess("Node deleted successfully");
+                        } catch (error) {
+                          showError(error);
+                        }
+                      })();
+                    }}
+                    isReadOnly={isReadOnly}
+                  />
+                </Panel>
+              </>
+            )}
+          </PanelGroup>
+
+          {/* Mobile layout with overlay */}
+          <div className="flex-1 sm:hidden w-full">
             <GraphEditor
               modelId={modelId as Id<"models">}
               nodes={nodes}
@@ -454,18 +518,16 @@ function ModelDetailPage() {
               isFullScreen={isFullScreen}
               onToggleFullScreen={() => setIsFullScreen(!isFullScreen)}
             />
-          </Panel>
+          </div>
 
           {selectedNodeData && (
             <>
-              <PanelResizeHandle className="w-1 bg-accent/35 hover:bg-secondary transition-colors" />
-              <Panel
-                id="inspector"
-                order={2}
-                defaultSize={30}
-                minSize={20}
-                className="min-w-78"
-              >
+              <div
+                className="fixed inset-0 bg-black bg-opacity-50 z-20 sm:hidden"
+                onClick={handleCloseSidebar}
+                onTouchMove={(e) => e.preventDefault()}
+              />
+              <div className="fixed inset-y-0 right-0 w-[85vw] max-w-sm h-full bg-base-100 p-6 rounded-lg border border-base-300 z-30 sm:hidden">
                 <NodeInspector
                   key={selectedNode}
                   node={selectedNodeData}
@@ -494,63 +556,9 @@ function ModelDetailPage() {
                   }}
                   isReadOnly={isReadOnly}
                 />
-              </Panel>
+              </div>
             </>
           )}
-        </PanelGroup>
-
-        {/* Mobile layout with overlay */}
-        <div className="flex-1 sm:hidden w-full">
-          <GraphEditor
-            modelId={modelId as Id<"models">}
-            nodes={nodes}
-            selectedNode={selectedNode}
-            onNodeSelect={handleNodeSelect}
-            isReadOnly={isReadOnly}
-            isFullScreen={isFullScreen}
-            onToggleFullScreen={() => setIsFullScreen(!isFullScreen)}
-          />
-        </div>
-
-        {selectedNodeData && (
-          <>
-            <div
-              className="fixed inset-0 bg-black bg-opacity-50 z-20 sm:hidden"
-              onClick={handleCloseSidebar}
-              onTouchMove={(e) => e.preventDefault()}
-            />
-            <div className="fixed inset-y-0 right-0 w-[85vw] max-w-sm h-full bg-base-100 p-6 rounded-lg border border-base-300 z-30 sm:hidden">
-              <NodeInspector
-                key={selectedNode}
-                node={selectedNodeData}
-                allNodes={nodes}
-                onClose={handleCloseSidebar}
-                onUpdate={(updates) => {
-                  void (async () => {
-                    try {
-                      await updateNode({ id: selectedNode!, ...updates });
-                      showSuccess("Node updated successfully");
-                    } catch (error) {
-                      showError(error);
-                    }
-                  })();
-                }}
-                onDelete={() => {
-                  void (async () => {
-                    try {
-                      await deleteNode({ id: selectedNode! });
-                      handleCloseSidebar();
-                      showSuccess("Node deleted successfully");
-                    } catch (error) {
-                      showError(error);
-                    }
-                  })();
-                }}
-                isReadOnly={isReadOnly}
-              />
-            </div>
-          </>
-        )}
         </div>
       </div>
     </>
