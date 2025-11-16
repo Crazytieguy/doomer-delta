@@ -5,6 +5,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
+import { ConvexError } from "convex/values";
 
 export type Toast = {
   id: string;
@@ -40,7 +41,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const showError = useCallback(
     (error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error);
+      let message: string;
+      if (error instanceof ConvexError) {
+        message =
+          typeof error.data === "string"
+            ? error.data
+            : (error.data as { message?: string })?.message ||
+              "An error occurred";
+      } else if (error instanceof Error) {
+        message = error.message;
+      } else {
+        message = String(error);
+      }
       addToast(message, "error");
     },
     [addToast],
