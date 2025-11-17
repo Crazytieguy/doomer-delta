@@ -61,7 +61,11 @@ function ProbabilityNode({ data }: NodeProps) {
 
   return (
     <div className="px-5 py-3 shadow-md rounded-lg bg-primary/15 border-2 border-base-300/70 transition-all duration-200 hover:shadow-lg hover:border-primary/30">
-      <Handle type="target" position={Position.Top} className="!bg-accent !w-3 !h-3" />
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="!bg-accent !w-3 !h-3"
+      />
       <div className="text-center">
         <div className="font-medium text-base text-base-content leading-tight">
           {label}
@@ -72,7 +76,11 @@ function ProbabilityNode({ data }: NodeProps) {
           </div>
         )}
       </div>
-      <Handle type="source" position={Position.Bottom} className="!bg-accent !w-3 !h-3" />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="!bg-accent !w-3 !h-3"
+      />
     </div>
   );
 }
@@ -436,7 +444,6 @@ function GraphEditorInner({
     [updateNode, dbNodes, showError],
   );
 
-
   const handleConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
@@ -480,7 +487,9 @@ function GraphEditorInner({
           showError(error);
           // Rollback the edge from UI since mutation failed
           setEdges((eds) =>
-            eds.filter((e) => !(e.source === sourceId && e.target === targetId)),
+            eds.filter(
+              (e) => !(e.source === sourceId && e.target === targetId),
+            ),
           );
         }
       })();
@@ -514,7 +523,14 @@ function GraphEditorInner({
         onNodeSelect(null);
       }
     },
-    [modelId, createNode, screenToFlowPosition, onNodeSelect, isReadOnly, showError],
+    [
+      modelId,
+      createNode,
+      screenToFlowPosition,
+      onNodeSelect,
+      isReadOnly,
+      showError,
+    ],
   );
 
   const onNodeClick = useCallback(

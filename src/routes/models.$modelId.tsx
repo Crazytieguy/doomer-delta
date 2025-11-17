@@ -2,7 +2,14 @@ import { convexQuery } from "@convex-dev/react-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useConvexAuth, useMutation } from "convex/react";
-import { Copy, GitFork, Globe, GlobeLock, MoreVertical, UserPlus } from "lucide-react";
+import {
+  Copy,
+  GitFork,
+  Globe,
+  GlobeLock,
+  MoreVertical,
+  UserPlus,
+} from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { api } from "../../convex/_generated/api";
@@ -12,7 +19,9 @@ import { ShareDialog, type ShareDialogRef } from "../components/ShareDialog";
 import { useToast } from "../components/ToastContext";
 
 function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+  const [matches, setMatches] = useState(
+    () => window.matchMedia(query).matches,
+  );
 
   useEffect(() => {
     const media = window.matchMedia(query);
@@ -78,7 +87,10 @@ function MobileActionsMenu({
         {isOwner && (
           <>
             <li>
-              <button className="btn btn-sm btn-accent" onClick={onTogglePublic}>
+              <button
+                className="btn btn-sm btn-accent"
+                onClick={onTogglePublic}
+              >
                 {isPublic ? (
                   <GlobeLock className="w-4 h-4" />
                 ) : (
@@ -141,7 +153,8 @@ function ModelDetailPage() {
   const { showError, showSuccess } = useToast();
 
   const [selectedNode, setSelectedNode] = useState<Id<"nodes"> | null>(null);
-  const [newlyCreatedNodeId, setNewlyCreatedNodeId] = useState<Id<"nodes"> | null>(null);
+  const [newlyCreatedNodeId, setNewlyCreatedNodeId] =
+    useState<Id<"nodes"> | null>(null);
   const [modelName, setModelName] = useState(model?.name ?? "");
   const [modelDescription, setModelDescription] = useState(
     model?.description ?? "",
@@ -281,7 +294,10 @@ function ModelDetailPage() {
 
   const selectedNodeData = nodes.find((n) => n._id === selectedNode);
 
-  const handleNodeSelect = (nodeId: Id<"nodes"> | null, isNewlyCreated = false) => {
+  const handleNodeSelect = (
+    nodeId: Id<"nodes"> | null,
+    isNewlyCreated = false,
+  ) => {
     setSelectedNode(nodeId);
     if (isNewlyCreated) {
       setNewlyCreatedNodeId(nodeId);
@@ -332,7 +348,10 @@ function ModelDetailPage() {
                       onClose={handleCloseSidebar}
                       onUpdate={(updates) => {
                         void (async () => {
-                          if (!selectedNode || !nodes.some((n) => n._id === selectedNode)) {
+                          if (
+                            !selectedNode ||
+                            !nodes.some((n) => n._id === selectedNode)
+                          ) {
                             return;
                           }
                           try {
@@ -346,7 +365,10 @@ function ModelDetailPage() {
                       }}
                       onDelete={() => {
                         void (async () => {
-                          if (!selectedNode || !nodes.some((n) => n._id === selectedNode)) {
+                          if (
+                            !selectedNode ||
+                            !nodes.some((n) => n._id === selectedNode)
+                          ) {
                             return;
                           }
                           try {

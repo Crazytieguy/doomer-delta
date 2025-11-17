@@ -221,7 +221,9 @@ function RootComponent() {
                         <div className="divider my-2"></div>
                         <div className="menu-title mb-2 opacity-75">Help</div>
                         <ul role="menu" className="space-y-1">
-                          <HelpLinks onLinkClick={() => setIsAuthSidebarOpen(false)} />
+                          <HelpLinks
+                            onLinkClick={() => setIsAuthSidebarOpen(false)}
+                          />
                         </ul>
                       </div>
                       <div className="mt-auto py-4 border-t border-base-300/50 flex justify-center items-center">
@@ -319,17 +321,25 @@ function RootComponent() {
                         <div className="divider my-2"></div>
                         <div className="menu-title mb-2 opacity-75">Help</div>
                         <ul role="menu" className="space-y-1">
-                          <HelpLinks onLinkClick={() => setIsUnauthSidebarOpen(false)} />
+                          <HelpLinks
+                            onLinkClick={() => setIsUnauthSidebarOpen(false)}
+                          />
                         </ul>
                       </div>
                       <div className="mt-auto py-4 border-t border-base-300/50 flex flex-col gap-2">
                         <SignInButton mode="modal">
-                          <button className="btn btn-primary btn-sm w-full" onClick={() => setIsUnauthSidebarOpen(false)}>
+                          <button
+                            className="btn btn-primary btn-sm w-full"
+                            onClick={() => setIsUnauthSidebarOpen(false)}
+                          >
                             Sign in
                           </button>
                         </SignInButton>
                         <SignUpButton mode="modal">
-                          <button className="btn btn-outline btn-sm w-full" onClick={() => setIsUnauthSidebarOpen(false)}>
+                          <button
+                            className="btn btn-outline btn-sm w-full"
+                            onClick={() => setIsUnauthSidebarOpen(false)}
+                          >
                             Sign up
                           </button>
                         </SignUpButton>

@@ -52,7 +52,9 @@ export function ModelCard({
             <span className="truncate">{ownerName}</span>
           </span>
           <span className="shrink-0">•</span>
-          <span className="shrink-0">{new Date(creationTime).toLocaleDateString()}</span>
+          <span className="shrink-0">
+            {new Date(creationTime).toLocaleDateString()}
+          </span>
           {(uniqueForkers ?? 0) > 0 && (
             <span className="text-secondary flex items-center gap-1 sm:ml-auto">
               <GitFork size={14} strokeWidth={2.5} />
