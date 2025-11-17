@@ -2,13 +2,13 @@ import { convexQuery } from "@convex-dev/react-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useConvexAuth, useMutation } from "convex/react";
-import { Copy, GitFork, Globe, GlobeLock } from "lucide-react";
-import { useState } from "react";
+import { Copy, GitFork, Globe, GlobeLock, MoreVertical, UserPlus } from "lucide-react";
+import { useState, useRef } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { GraphEditor, NodeInspector } from "../components/GraphEditor";
-import { ShareDialog } from "../components/ShareDialog";
+import { ShareDialog, type ShareDialogRef } from "../components/ShareDialog";
 import { useToast } from "../components/ToastContext";
 
 const modelQueryOptions = (modelId: Id<"models">) =>
@@ -30,6 +30,88 @@ export const Route = createFileRoute("/models/$modelId")({
   component: ModelDetailPage,
 });
 
+interface MobileActionsMenuProps {
+  isOwner: boolean;
+  isPublic: boolean;
+  uniqueForkers?: number;
+  isAuthenticated: boolean;
+  onTogglePublic: () => void;
+  onShare: () => void;
+  onCopyLink: () => void;
+  onFork: () => void;
+}
+
+function MobileActionsMenu({
+  isOwner,
+  isPublic,
+  uniqueForkers,
+  isAuthenticated,
+  onTogglePublic,
+  onShare,
+  onCopyLink,
+  onFork,
+}: MobileActionsMenuProps) {
+  return (
+    <div className="dropdown dropdown-end sm:hidden">
+      <div tabIndex={0} role="button" className="btn btn-sm btn-ghost">
+        <MoreVertical className="w-4 h-4" />
+      </div>
+      <ul
+        tabIndex={0}
+        className="dropdown-content menu bg-base-100 rounded-box w-52 p-2 shadow-lg border border-base-300"
+      >
+        {isOwner && (
+          <>
+            <li>
+              <button className="btn btn-sm btn-accent" onClick={onTogglePublic}>
+                {isPublic ? (
+                  <GlobeLock className="w-4 h-4" />
+                ) : (
+                  <Globe className="w-4 h-4" />
+                )}
+                {isPublic ? "Make Private" : "Make Public"}
+              </button>
+            </li>
+            {!isPublic && (
+              <li>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline w-full"
+                  onClick={onShare}
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Share
+                </button>
+              </li>
+            )}
+          </>
+        )}
+        <li>
+          <button className="btn btn-sm btn-outline" onClick={onCopyLink}>
+            <Copy className="w-4 h-4" />
+            Copy Link
+          </button>
+        </li>
+        <li>
+          <button
+            className="btn btn-sm btn-secondary gap-1"
+            onClick={onFork}
+            disabled={!isAuthenticated}
+          >
+            <GitFork className="w-4 h-4" />
+            Fork
+            {(uniqueForkers ?? 0) > 0 && (
+              <span className="badge badge-neutral badge-sm font-mono tabular-nums ml-auto">
+                {uniqueForkers}
+              </span>
+            )}
+          </button>
+        </li>
+      </ul>
+    </div>
+  );
+}
+
 function ModelDetailPage() {
   const { modelId } = Route.useParams();
   const navigate = useNavigate();
@@ -50,6 +132,7 @@ function ModelDetailPage() {
   );
   const [hasModelChanges, setHasModelChanges] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const shareDialogRef = useRef<ShareDialogRef>(null);
 
   const isOwner = model?.isOwner ?? false;
   const isReadOnly = !isOwner;
@@ -262,11 +345,11 @@ function ModelDetailPage() {
         <div className="relative z-10">
           {isReadOnly ? (
             <>
-              <div className="flex gap-4 items-start justify-between mb-2">
-                <h1 className="text-4xl font-bold mt-0 mb-0 flex-1">
+              <div className="flex gap-4 items-center justify-between mb-2">
+                <h1 className="text-2xl sm:text-4xl font-bold mt-0 mb-0 flex-1">
                   {modelName}
                 </h1>
-                <div className="not-prose flex gap-2 shrink-0 items-start">
+                <div className="not-prose hidden sm:flex gap-2 shrink-0 items-center">
                   {isOwner ? (
                     <>
                       <button
@@ -281,7 +364,14 @@ function ModelDetailPage() {
                         {model.isPublic ? "Make Private" : "Make Public"}
                       </button>
                       {!model.isPublic && (
-                        <ShareDialog modelId={modelId as Id<"models">} />
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          onClick={() => shareDialogRef.current?.openDialog()}
+                        >
+                          <UserPlus className="w-4 h-4" />
+                          Share
+                        </button>
                       )}
                     </>
                   ) : (
@@ -295,6 +385,7 @@ function ModelDetailPage() {
                     </span>
                   )}
                   <button
+                    type="button"
                     className="btn btn-sm btn-outline"
                     onClick={handleCopyLink}
                   >
@@ -310,6 +401,7 @@ function ModelDetailPage() {
                     }
                   >
                     <button
+                      type="button"
                       className="btn btn-sm btn-secondary gap-1"
                       onClick={() => void handleFork()}
                       disabled={!isAuthenticated}
@@ -324,6 +416,16 @@ function ModelDetailPage() {
                     </button>
                   </div>
                 </div>
+                <MobileActionsMenu
+                  isOwner={isOwner}
+                  isPublic={model.isPublic}
+                  uniqueForkers={model.uniqueForkers}
+                  isAuthenticated={isAuthenticated}
+                  onTogglePublic={() => void handleTogglePublic()}
+                  onShare={() => shareDialogRef.current?.openDialog()}
+                  onCopyLink={handleCopyLink}
+                  onFork={() => void handleFork()}
+                />
               </div>
               <div className="flex items-center gap-2 text-sm opacity-60 mt-0 mb-2">
                 <span>by {isOwner ? "You" : model.ownerName}</span>
@@ -347,17 +449,18 @@ function ModelDetailPage() {
                 void handleSaveModel();
               }}
             >
-              <div className="flex gap-4 items-start justify-between mb-2">
+              <div className="flex gap-4 items-center justify-between mb-2">
                 <input
                   type="text"
-                  className="input input-ghost text-4xl font-bold w-full px-0 mb-0 flex-1"
+                  className="input input-ghost text-2xl sm:text-4xl font-bold w-full px-0 mb-0 flex-1"
                   value={modelName}
                   onChange={(e) => handleModelNameChange(e.target.value)}
                 />
-                <div className="not-prose flex gap-2 shrink-0 items-start">
+                <div className="not-prose hidden sm:flex gap-2 shrink-0 items-center">
                   {isOwner && (
                     <>
                       <button
+                        type="button"
                         className="btn btn-sm btn-accent"
                         onClick={() => void handleTogglePublic()}
                       >
@@ -369,11 +472,19 @@ function ModelDetailPage() {
                         {model.isPublic ? "Make Private" : "Make Public"}
                       </button>
                       {!model.isPublic && (
-                        <ShareDialog modelId={modelId as Id<"models">} />
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          onClick={() => shareDialogRef.current?.openDialog()}
+                        >
+                          <UserPlus className="w-4 h-4" />
+                          Share
+                        </button>
                       )}
                     </>
                   )}
                   <button
+                    type="button"
                     className="btn btn-sm btn-outline"
                     onClick={handleCopyLink}
                   >
@@ -389,6 +500,7 @@ function ModelDetailPage() {
                     }
                   >
                     <button
+                      type="button"
                       className="btn btn-sm btn-secondary gap-1"
                       onClick={() => void handleFork()}
                       disabled={!isAuthenticated}
@@ -403,6 +515,16 @@ function ModelDetailPage() {
                     </button>
                   </div>
                 </div>
+                <MobileActionsMenu
+                  isOwner={isOwner}
+                  isPublic={model.isPublic}
+                  uniqueForkers={model.uniqueForkers}
+                  isAuthenticated={isAuthenticated}
+                  onTogglePublic={() => void handleTogglePublic()}
+                  onShare={() => shareDialogRef.current?.openDialog()}
+                  onCopyLink={handleCopyLink}
+                  onFork={() => void handleFork()}
+                />
               </div>
               <div
                 className="grid mb-4 after:invisible after:whitespace-pre-wrap after:content-[attr(data-value)] after:[grid-area:1/1] after:text-sm after:border after:border-solid after:border-[#0000] after:[line-height:1.5] after:py-1"
@@ -527,7 +649,7 @@ function ModelDetailPage() {
                 onClick={handleCloseSidebar}
                 onTouchMove={(e) => e.preventDefault()}
               />
-              <div className="fixed inset-y-0 right-0 w-[85vw] max-w-sm h-full bg-base-100 p-6 rounded-lg border border-base-300 z-30 sm:hidden">
+              <div className="fixed inset-y-0 right-0 w-[85vw] max-w-sm h-full bg-base-100 rounded-lg border border-base-300 z-30 sm:hidden">
                 <NodeInspector
                   key={selectedNode}
                   node={selectedNodeData}
@@ -561,6 +683,14 @@ function ModelDetailPage() {
           )}
         </div>
       </div>
+      {/* ShareDialog rendered at page level to avoid dropdown nesting issues */}
+      {isOwner && !model.isPublic && (
+        <ShareDialog
+          ref={shareDialogRef}
+          modelId={modelId as Id<"models">}
+          showButton={false}
+        />
+      )}
     </>
   );
 }

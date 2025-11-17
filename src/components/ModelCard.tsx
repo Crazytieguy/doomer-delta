@@ -46,14 +46,15 @@ export function ModelCard({
         ) : (
           <p className="text-sm opacity-50 italic">No description</p>
         )}
-        <div className="flex items-center justify-between gap-2 text-sm opacity-60 mt-2 pt-2 border-t border-base-300">
-          <div className="flex items-center gap-2">
-            <span>by {ownerName}</span>
-            <span>•</span>
-            <span>{new Date(creationTime).toLocaleDateString()}</span>
-          </div>
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-1 text-sm opacity-60 mt-2 pt-2 border-t border-base-300">
+          <span className="flex items-center gap-2 min-w-0">
+            <span className="shrink-0">by</span>
+            <span className="truncate">{ownerName}</span>
+          </span>
+          <span className="shrink-0">•</span>
+          <span className="shrink-0">{new Date(creationTime).toLocaleDateString()}</span>
           {(uniqueForkers ?? 0) > 0 && (
-            <span className="text-secondary flex items-center gap-1">
+            <span className="text-secondary flex items-center gap-1 sm:ml-auto">
               <GitFork size={14} strokeWidth={2.5} />
               <span className="font-semibold">{uniqueForkers}</span>
             </span>

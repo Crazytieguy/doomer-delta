@@ -1,15 +1,20 @@
 import { useMutation, useQuery } from "convex/react";
 import { Mail, UserPlus, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { useToast } from "./ToastContext";
 
 interface ShareDialogProps {
   modelId: Id<"models">;
+  showButton?: boolean;
 }
 
-export function ShareDialog({ modelId }: ShareDialogProps) {
+export interface ShareDialogRef {
+  openDialog: () => void;
+}
+
+export const ShareDialog = forwardRef<ShareDialogRef, ShareDialogProps>(function ShareDialog({ modelId, showButton = true }, ref) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,6 +27,10 @@ export function ShareDialog({ modelId }: ShareDialogProps) {
   const openDialog = () => {
     dialogRef.current?.showModal();
   };
+
+  useImperativeHandle(ref, () => ({
+    openDialog,
+  }));
 
   const closeDialog = () => {
     dialogRef.current?.close();
@@ -67,17 +76,20 @@ export function ShareDialog({ modelId }: ShareDialogProps) {
 
   return (
     <>
-      <button
-        onClick={openDialog}
-        className="btn btn-outline btn-sm"
-        aria-label="Share model"
-      >
-        <UserPlus className="w-4 h-4" />
-        Share
-      </button>
+      {showButton && (
+        <button
+          type="button"
+          onClick={openDialog}
+          className="btn btn-outline btn-sm"
+          aria-label="Share model"
+        >
+          <UserPlus className="w-4 h-4" />
+          Share
+        </button>
+      )}
 
-      <dialog ref={dialogRef} className="modal">
-        <div className="modal-box">
+      <dialog ref={dialogRef} className="modal" style={{ zIndex: 9999 }}>
+        <div className="modal-box w-11/12 max-w-lg sm:max-w-xl">
           <button
             onClick={closeDialog}
             className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
@@ -93,7 +105,7 @@ export function ShareDialog({ modelId }: ShareDialogProps) {
               <label className="label">
                 <span className="label-text">Email address</span>
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-2">
                 <div className="relative flex-1">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/50 z-10" />
                   <input
@@ -106,14 +118,14 @@ export function ShareDialog({ modelId }: ShareDialogProps) {
                       }
                     }}
                     placeholder="user@example.com"
-                    className="input input-border w-full pl-10"
+                    className="input w-full pl-10"
                     disabled={isSubmitting}
                   />
                 </div>
                 <button
                   type="button"
                   onClick={(e) => void handleShare(e as any)}
-                  className="btn btn-primary"
+                  className="btn btn-primary w-full sm:w-auto"
                   disabled={isSubmitting || !email.trim()}
                 >
                   Share
@@ -162,4 +174,4 @@ export function ShareDialog({ modelId }: ShareDialogProps) {
       </dialog>
     </>
   );
-}
+});

@@ -39,10 +39,10 @@ function MyModelsPage() {
 
   return (
     <div>
-      <div className="not-prose flex justify-between items-center mb-4">
+      <div className="not-prose flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-4">
         <h1 className="text-2xl font-bold">Your Models</h1>
         <button
-          className="btn btn-primary"
+          className="btn btn-primary w-full sm:w-auto"
           onClick={() => void handleCreateModel()}
         >
           <Plus className="w-4 h-4" />

@@ -1,4 +1,4 @@
-import { SignInButton } from "@clerk/clerk-react";
+import { SignUpButton } from "@clerk/clerk-react";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { Authenticated, Unauthenticated } from "convex/react";
 import { Network } from "lucide-react";
@@ -24,17 +24,17 @@ function HomePage() {
           </div>
           <h1>Bayesian World Models</h1>
           <p>Build, visualize, and share Bayesian network world-models.</p>
-          <div className="not-prose mt-6 flex gap-3 justify-center">
-            <SignInButton mode="modal">
-              <button className="btn btn-primary btn-lg shadow-lg">
-                Get Started
-              </button>
-            </SignInButton>
-            <Link to="/models/public">
-              <button className="btn btn-outline btn-lg">
+          <div className="not-prose mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+            <Link to="/models/public" className="w-full sm:w-auto">
+              <button className="btn btn-outline btn-lg w-full">
                 Browse Public Models
               </button>
             </Link>
+            <SignUpButton mode="modal">
+              <button className="btn btn-primary btn-lg shadow-lg w-full sm:w-auto">
+                Sign Up to Create
+              </button>
+            </SignUpButton>
           </div>
         </div>
       </Unauthenticated>

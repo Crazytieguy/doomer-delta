@@ -4,6 +4,27 @@
 @plugin "@tailwindcss/typography";
 @plugin "daisyui";
 
+/* Override daisyUI's scrollbar-gutter on modal */
+.modal[open],
+.modal-open,
+.modal-toggle:checked + .modal {
+  scrollbar-gutter: auto !important;
+}
+
+/* Force no scrollbar when modal is open */
+html:has(dialog[open]),
+body:has(dialog[open]) {
+  overflow: hidden !important;
+  scrollbar-gutter: auto !important;
+}
+
+/* Override daisyUI's scrollbar-gutter on drawer */
+.drawer-toggle:checked ~ .drawer-content,
+html:has(.drawer-toggle:checked),
+body:has(.drawer-toggle:checked) {
+  scrollbar-gutter: auto !important;
+}
+
 @plugin "daisyui/theme" {
   name: "abyss-light";
   default: true;
