@@ -8,8 +8,8 @@ import ReactFlow, {
   addEdge,
   Connection,
   Controls,
-  EdgeChange,
   Edge as FlowEdge,
+  EdgeChange,
   Node as FlowNode,
   Handle,
   MiniMap,
@@ -49,7 +49,7 @@ interface GraphEditorProps {
   modelId: Id<"models">;
   nodes: Node[];
   selectedNode: Id<"nodes"> | null;
-  onNodeSelect: (nodeId: Id<"nodes"> | null) => void;
+  onNodeSelect: (nodeId: Id<"nodes"> | null, isNewlyCreated?: boolean) => void;
   isReadOnly?: boolean;
   isFullScreen?: boolean;
   onToggleFullScreen?: () => void;
@@ -61,7 +61,7 @@ function ProbabilityNode({ data }: NodeProps) {
 
   return (
     <div className="px-5 py-3 shadow-md rounded-lg bg-primary/15 border-2 border-base-300/70 transition-all duration-200 hover:shadow-lg hover:border-primary/30">
-      <Handle type="target" position={Position.Top} className="!bg-accent" />
+      <Handle type="target" position={Position.Top} className="!bg-accent !w-3 !h-3" />
       <div className="text-center">
         <div className="font-medium text-base text-base-content leading-tight">
           {label}
@@ -72,7 +72,7 @@ function ProbabilityNode({ data }: NodeProps) {
           </div>
         )}
       </div>
-      <Handle type="source" position={Position.Bottom} className="!bg-accent" />
+      <Handle type="source" position={Position.Bottom} className="!bg-accent !w-3 !h-3" />
     </div>
   );
 }
@@ -164,33 +164,36 @@ function GraphEditorInner({
       const currentNodes = localStore.getQuery(api.nodes.listByModel, {
         modelId,
       });
-      if (currentNodes) {
-        const filteredNodes = currentNodes.filter((n) => n._id !== args.id);
+      if (!currentNodes) return;
 
-        const updatedNodes = filteredNodes.map((node) => {
-          const hasDeletedParent = node.cptEntries.some(
-            (entry) => args.id in entry.parentStates,
-          );
-          if (!hasDeletedParent) return node;
+      const nodeExists = currentNodes.some((n) => n._id === args.id);
+      if (!nodeExists) return;
 
-          const newCptEntries = node.cptEntries.map((entry) => {
-            const newParentStates = { ...entry.parentStates };
-            delete newParentStates[args.id];
-            return { ...entry, parentStates: newParentStates };
-          });
+      const filteredNodes = currentNodes.filter((n) => n._id !== args.id);
 
-          return {
-            ...node,
-            cptEntries: newCptEntries,
-            columnOrder: syncColumnOrderWithCptEntries(
-              newCptEntries,
-              node.columnOrder,
-            ),
-          };
+      const updatedNodes = filteredNodes.map((node) => {
+        const hasDeletedParent = node.cptEntries.some(
+          (entry) => args.id in entry.parentStates,
+        );
+        if (!hasDeletedParent) return node;
+
+        const newCptEntries = node.cptEntries.map((entry) => {
+          const newParentStates = { ...entry.parentStates };
+          delete newParentStates[args.id];
+          return { ...entry, parentStates: newParentStates };
         });
 
-        localStore.setQuery(api.nodes.listByModel, { modelId }, updatedNodes);
-      }
+        return {
+          ...node,
+          cptEntries: newCptEntries,
+          columnOrder: syncColumnOrderWithCptEntries(
+            newCptEntries,
+            node.columnOrder,
+          ),
+        };
+      });
+
+      localStore.setQuery(api.nodes.listByModel, { modelId }, updatedNodes);
     },
   );
 
@@ -312,6 +315,12 @@ function GraphEditorInner({
       changes.forEach((change) => {
         if (change.type === "remove") {
           const nodeId = change.id as Id<"nodes">;
+
+          const nodeExists = dbNodes.some((n) => n._id === nodeId);
+          if (!nodeExists) {
+            return;
+          }
+
           const childrenWithDependency = dbNodes.filter((childNode) =>
             childNode.cptEntries.some((entry) => {
               const parentState = entry.parentStates[nodeId];
@@ -346,25 +355,12 @@ function GraphEditorInner({
         onNodesChange(nonRemoveChanges);
       }
     },
-    [onNodesChange, deleteNode, showSuccess, showError, dbNodes],
-  );
-
-  const handleNodeDragStop = useCallback(
-    (_event: React.MouseEvent, node: FlowNode) => {
-      void updateNode({
-        id: node.id as Id<"nodes">,
-        x: node.position.x,
-        y: node.position.y,
-      });
-    },
-    [updateNode],
+    [onNodesChange, deleteNode, showError, showSuccess, dbNodes],
   );
 
   const handleEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
-      const nonRemovalChanges: EdgeChange[] = [];
-
-      changes.forEach((change) => {
+      const validChanges = changes.filter((change) => {
         if (change.type === "remove") {
           const [parentId, childId] = change.id.split("-");
           const childNode = dbNodes.find((n) => n._id === childId);
@@ -376,11 +372,22 @@ function GraphEditorInner({
 
             if (!canRemove) {
               showError(
-                `Cannot remove edge: "${childNode.title}" has specific probabilities for this parent. Set all to "any" first.`,
+                `Cannot remove edge: child node has specific probabilities for this parent. Set to "any" first.`,
               );
-              return;
+              return false;
             }
+          }
+        }
+        return true;
+      });
 
+      onEdgesChange(validChanges);
+
+      validChanges.forEach((change) => {
+        if (change.type === "remove") {
+          const [parentId, childId] = change.id.split("-");
+          const childNode = dbNodes.find((n) => n._id === childId);
+          if (childNode) {
             const newCptEntries = childNode.cptEntries.map((entry) => {
               const newParentStates = { ...entry.parentStates };
               delete newParentStates[parentId];
@@ -402,49 +409,83 @@ function GraphEditorInner({
               }
             })();
           }
-        } else {
-          nonRemovalChanges.push(change);
         }
       });
-
-      if (nonRemovalChanges.length > 0) {
-        onEdgesChange(nonRemovalChanges);
-      }
     },
-    [onEdgesChange, dbNodes, updateNode, showSuccess, showError],
+    [onEdgesChange, dbNodes, updateNode, showError, showSuccess],
   );
+
+  const handleNodeDragStop = useCallback(
+    (_event: React.MouseEvent, node: FlowNode) => {
+      const nodeId = node.id as Id<"nodes">;
+      const nodeExists = dbNodes.some((n) => n._id === nodeId);
+      if (!nodeExists) return;
+
+      void (async () => {
+        try {
+          await updateNode({
+            id: nodeId,
+            x: node.position.x,
+            y: node.position.y,
+          });
+        } catch (error) {
+          showError(error);
+        }
+      })();
+    },
+    [updateNode, dbNodes, showError],
+  );
+
 
   const handleConnect = useCallback(
     (connection: Connection) => {
-      setEdges((eds) => addEdge(connection, eds));
+      if (!connection.source || !connection.target) return;
 
-      if (connection.source && connection.target) {
-        const sourceId = connection.source;
-        const childNode = dbNodes.find((n) => n._id === connection.target);
-        if (childNode) {
-          const alreadyHasParent = childNode.cptEntries.some(
-            (entry) => sourceId in entry.parentStates,
-          );
+      const sourceId = connection.source;
+      const targetId = connection.target as Id<"nodes">;
 
-          if (alreadyHasParent) {
-            return;
-          }
+      const sourceExists = dbNodes.some((n) => n._id === sourceId);
+      const targetExists = dbNodes.some((n) => n._id === targetId);
 
-          const newCptEntries = childNode.cptEntries.map((entry) => ({
-            parentStates: {
-              ...entry.parentStates,
-              [sourceId]: null,
-            },
-            probability: entry.probability,
-          }));
-          void updateNode({
-            id: connection.target as Id<"nodes">,
+      if (!sourceExists || !targetExists) return;
+
+      setEdges((eds) =>
+        addEdge({ ...connection, id: `${sourceId}-${targetId}` }, eds),
+      );
+
+      const childNode = dbNodes.find((n) => n._id === targetId);
+      if (!childNode) return;
+
+      const alreadyHasParent = childNode.cptEntries.some(
+        (entry) => sourceId in entry.parentStates,
+      );
+
+      if (alreadyHasParent) return;
+
+      const newCptEntries = childNode.cptEntries.map((entry) => ({
+        parentStates: {
+          ...entry.parentStates,
+          [sourceId]: null,
+        },
+        probability: entry.probability,
+      }));
+
+      void (async () => {
+        try {
+          await updateNode({
+            id: targetId,
             cptEntries: newCptEntries,
           });
+        } catch (error) {
+          showError(error);
+          // Rollback the edge from UI since mutation failed
+          setEdges((eds) =>
+            eds.filter((e) => !(e.source === sourceId && e.target === targetId)),
+          );
         }
-      }
+      })();
     },
-    [setEdges, dbNodes, updateNode],
+    [setEdges, dbNodes, updateNode, showError],
   );
 
   const handlePaneClick = useCallback(
@@ -456,20 +497,24 @@ function GraphEditorInner({
         });
 
         void (async () => {
-          const newNodeId = await createNode({
-            modelId,
-            title: "New Node",
-            x: position.x,
-            y: position.y,
-          });
-          onNodeSelect(newNodeId);
+          try {
+            const newNodeId = await createNode({
+              modelId,
+              title: "New Node",
+              x: position.x,
+              y: position.y,
+            });
+            onNodeSelect(newNodeId, true);
+          } catch (error) {
+            showError(error);
+          }
         })();
       } else if (event.detail === 1) {
         // Single click on pane - deselect node and close sidebar
         onNodeSelect(null);
       }
     },
-    [modelId, createNode, screenToFlowPosition, onNodeSelect, isReadOnly],
+    [modelId, createNode, screenToFlowPosition, onNodeSelect, isReadOnly, showError],
   );
 
   const onNodeClick = useCallback(
@@ -487,6 +532,7 @@ function GraphEditorInner({
         nodeTypes={nodeTypes}
         onNodesChange={isReadOnly ? undefined : handleNodesChange}
         onEdgesChange={isReadOnly ? undefined : handleEdgesChange}
+        edgesFocusable={!isReadOnly}
         onConnect={isReadOnly ? undefined : handleConnect}
         onNodeDragStop={isReadOnly ? undefined : handleNodeDragStop}
         onPaneClick={handlePaneClick}
@@ -494,7 +540,6 @@ function GraphEditorInner({
         nodesDraggable={!isReadOnly}
         nodesConnectable={!isReadOnly}
         nodesFocusable={!isReadOnly}
-        edgesFocusable={!isReadOnly}
         elementsSelectable
         zoomOnDoubleClick={false}
         fitView
@@ -570,6 +615,7 @@ export interface NodeInspectorProps {
   }) => void;
   onDelete: () => void;
   isReadOnly?: boolean;
+  isNewlyCreated?: boolean;
 }
 
 export function NodeInspector({
@@ -579,6 +625,7 @@ export function NodeInspector({
   onUpdate,
   onDelete,
   isReadOnly = false,
+  isNewlyCreated = false,
 }: NodeInspectorProps) {
   const [activeTab, setActiveTab] = useState<"edit" | "sensitivity">("edit");
   const [title, setTitle] = useState(node.title);
@@ -605,11 +652,11 @@ export function NodeInspector({
   }, [node.cptEntries, node.columnOrder]);
 
   useEffect(() => {
-    if (node.title === "New Node" && titleInputRef.current) {
+    if (isNewlyCreated && titleInputRef.current) {
       titleInputRef.current.focus();
       titleInputRef.current.select();
     }
-  }, [node.title]);
+  }, [isNewlyCreated]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -637,7 +684,7 @@ export function NodeInspector({
   };
 
   const handleSave = () => {
-    if (title.trim() && !hasCptValidationError) {
+    if (title.trim() && !hasCptValidationError && hasChanges) {
       onUpdate({
         title: title.trim(),
         description: description.trim() || undefined,

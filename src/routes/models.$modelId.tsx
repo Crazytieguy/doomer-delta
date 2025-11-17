@@ -3,13 +3,28 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useConvexAuth, useMutation } from "convex/react";
 import { Copy, GitFork, Globe, GlobeLock, MoreVertical, UserPlus } from "lucide-react";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { GraphEditor, NodeInspector } from "../components/GraphEditor";
 import { ShareDialog, type ShareDialogRef } from "../components/ShareDialog";
 import { useToast } from "../components/ToastContext";
+
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    setMatches(media.matches);
+
+    const listener = (e: MediaQueryListEvent) => setMatches(e.matches);
+    media.addEventListener("change", listener);
+    return () => media.removeEventListener("change", listener);
+  }, [query]);
+
+  return matches;
+}
 
 const modelQueryOptions = (modelId: Id<"models">) =>
   convexQuery(api.models.get, { id: modelId });
@@ -126,6 +141,7 @@ function ModelDetailPage() {
   const { showError, showSuccess } = useToast();
 
   const [selectedNode, setSelectedNode] = useState<Id<"nodes"> | null>(null);
+  const [newlyCreatedNodeId, setNewlyCreatedNodeId] = useState<Id<"nodes"> | null>(null);
   const [modelName, setModelName] = useState(model?.name ?? "");
   const [modelDescription, setModelDescription] = useState(
     model?.description ?? "",
@@ -133,6 +149,7 @@ function ModelDetailPage() {
   const [hasModelChanges, setHasModelChanges] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const shareDialogRef = useRef<ShareDialogRef>(null);
+  const isDesktop = useMediaQuery("(min-width: 640px)");
 
   const isOwner = model?.isOwner ?? false;
   const isReadOnly = !isOwner;
@@ -264,12 +281,16 @@ function ModelDetailPage() {
 
   const selectedNodeData = nodes.find((n) => n._id === selectedNode);
 
-  const handleNodeSelect = (nodeId: Id<"nodes"> | null) => {
+  const handleNodeSelect = (nodeId: Id<"nodes"> | null, isNewlyCreated = false) => {
     setSelectedNode(nodeId);
+    if (isNewlyCreated) {
+      setNewlyCreatedNodeId(nodeId);
+    }
   };
 
   const handleCloseSidebar = () => {
     setSelectedNode(null);
+    setNewlyCreatedNodeId(null);
   };
 
   return (
@@ -311,9 +332,13 @@ function ModelDetailPage() {
                       onClose={handleCloseSidebar}
                       onUpdate={(updates) => {
                         void (async () => {
+                          if (!selectedNode || !nodes.some((n) => n._id === selectedNode)) {
+                            return;
+                          }
                           try {
-                            await updateNode({ id: selectedNode!, ...updates });
+                            await updateNode({ id: selectedNode, ...updates });
                             showSuccess("Node updated successfully");
+                            setNewlyCreatedNodeId(null);
                           } catch (error) {
                             showError(error);
                           }
@@ -321,8 +346,11 @@ function ModelDetailPage() {
                       }}
                       onDelete={() => {
                         void (async () => {
+                          if (!selectedNode || !nodes.some((n) => n._id === selectedNode)) {
+                            return;
+                          }
                           try {
-                            await deleteNode({ id: selectedNode! });
+                            await deleteNode({ id: selectedNode });
                             handleCloseSidebar();
                             showSuccess("Node deleted successfully");
                           } catch (error) {
@@ -331,6 +359,7 @@ function ModelDetailPage() {
                         })();
                       }}
                       isReadOnly={isReadOnly}
+                      isNewlyCreated={selectedNode === newlyCreatedNodeId}
                     />
                   </Panel>
                 </>
@@ -568,13 +597,84 @@ function ModelDetailPage() {
         </div>
 
         <div className="not-prose flex flex-1 overflow-hidden shadow-[4px_4px_12px_rgba(0,0,0,0.15)] relative">
-          {/* Desktop layout with resizable panels */}
-          <PanelGroup
-            autoSaveId="model-editor-layout"
-            direction="horizontal"
-            className="hidden sm:flex w-full h-full"
-          >
-            <Panel id="graph" order={1}>
+          {isDesktop ? (
+            /* Desktop layout with resizable panels */
+            <PanelGroup
+              autoSaveId="model-editor-layout"
+              direction="horizontal"
+              className="w-full h-full"
+            >
+              <Panel id="graph" order={1}>
+                <GraphEditor
+                  modelId={modelId as Id<"models">}
+                  nodes={nodes}
+                  selectedNode={selectedNode}
+                  onNodeSelect={handleNodeSelect}
+                  isReadOnly={isReadOnly}
+                  isFullScreen={isFullScreen}
+                  onToggleFullScreen={() => setIsFullScreen(!isFullScreen)}
+                />
+              </Panel>
+
+              {selectedNodeData && (
+                <>
+                  <PanelResizeHandle className="w-1 bg-accent/35 hover:bg-secondary transition-colors" />
+                  <Panel
+                    id="inspector"
+                    order={2}
+                    defaultSize={30}
+                    minSize={20}
+                    className="min-w-78"
+                  >
+                    <NodeInspector
+                      key={selectedNode}
+                      node={selectedNodeData}
+                      allNodes={nodes}
+                      onClose={handleCloseSidebar}
+                      onUpdate={(updates) => {
+                        void (async () => {
+                          if (
+                            !selectedNode ||
+                            !nodes.some((n) => n._id === selectedNode)
+                          ) {
+                            return;
+                          }
+                          try {
+                            await updateNode({ id: selectedNode, ...updates });
+                            showSuccess("Node updated successfully");
+                            setNewlyCreatedNodeId(null);
+                          } catch (error) {
+                            showError(error);
+                          }
+                        })();
+                      }}
+                      onDelete={() => {
+                        void (async () => {
+                          if (
+                            !selectedNode ||
+                            !nodes.some((n) => n._id === selectedNode)
+                          ) {
+                            return;
+                          }
+                          try {
+                            await deleteNode({ id: selectedNode });
+                            handleCloseSidebar();
+                            showSuccess("Node deleted successfully");
+                          } catch (error) {
+                            showError(error);
+                          }
+                        })();
+                      }}
+                      isReadOnly={isReadOnly}
+                      isNewlyCreated={selectedNode === newlyCreatedNodeId}
+                    />
+                  </Panel>
+                </>
+              )}
+            </PanelGroup>
+          ) : (
+            /* Mobile layout with overlay */
+            <div className="flex-1 w-full">
               <GraphEditor
                 modelId={modelId as Id<"models">}
                 nodes={nodes}
@@ -584,72 +684,17 @@ function ModelDetailPage() {
                 isFullScreen={isFullScreen}
                 onToggleFullScreen={() => setIsFullScreen(!isFullScreen)}
               />
-            </Panel>
+            </div>
+          )}
 
-            {selectedNodeData && (
-              <>
-                <PanelResizeHandle className="w-1 bg-accent/35 hover:bg-secondary transition-colors" />
-                <Panel
-                  id="inspector"
-                  order={2}
-                  defaultSize={30}
-                  minSize={20}
-                  className="min-w-78"
-                >
-                  <NodeInspector
-                    key={selectedNode}
-                    node={selectedNodeData}
-                    allNodes={nodes}
-                    onClose={handleCloseSidebar}
-                    onUpdate={(updates) => {
-                      void (async () => {
-                        try {
-                          await updateNode({ id: selectedNode!, ...updates });
-                          showSuccess("Node updated successfully");
-                        } catch (error) {
-                          showError(error);
-                        }
-                      })();
-                    }}
-                    onDelete={() => {
-                      void (async () => {
-                        try {
-                          await deleteNode({ id: selectedNode! });
-                          handleCloseSidebar();
-                          showSuccess("Node deleted successfully");
-                        } catch (error) {
-                          showError(error);
-                        }
-                      })();
-                    }}
-                    isReadOnly={isReadOnly}
-                  />
-                </Panel>
-              </>
-            )}
-          </PanelGroup>
-
-          {/* Mobile layout with overlay */}
-          <div className="flex-1 sm:hidden w-full">
-            <GraphEditor
-              modelId={modelId as Id<"models">}
-              nodes={nodes}
-              selectedNode={selectedNode}
-              onNodeSelect={handleNodeSelect}
-              isReadOnly={isReadOnly}
-              isFullScreen={isFullScreen}
-              onToggleFullScreen={() => setIsFullScreen(!isFullScreen)}
-            />
-          </div>
-
-          {selectedNodeData && (
+          {!isDesktop && selectedNodeData && (
             <>
               <div
-                className="fixed inset-0 bg-black bg-opacity-50 z-20 sm:hidden"
+                className="fixed inset-0 bg-black bg-opacity-50 z-20"
                 onClick={handleCloseSidebar}
                 onTouchMove={(e) => e.preventDefault()}
               />
-              <div className="fixed inset-y-0 right-0 w-[85vw] max-w-sm h-full bg-base-100 rounded-lg border border-base-300 z-30 sm:hidden">
+              <div className="fixed inset-y-0 right-0 w-[85vw] max-w-sm h-full bg-base-100 rounded-lg border border-base-300 z-30">
                 <NodeInspector
                   key={selectedNode}
                   node={selectedNodeData}
@@ -657,9 +702,16 @@ function ModelDetailPage() {
                   onClose={handleCloseSidebar}
                   onUpdate={(updates) => {
                     void (async () => {
+                      if (
+                        !selectedNode ||
+                        !nodes.some((n) => n._id === selectedNode)
+                      ) {
+                        return;
+                      }
                       try {
-                        await updateNode({ id: selectedNode!, ...updates });
+                        await updateNode({ id: selectedNode, ...updates });
                         showSuccess("Node updated successfully");
+                        setNewlyCreatedNodeId(null);
                       } catch (error) {
                         showError(error);
                       }
@@ -667,8 +719,14 @@ function ModelDetailPage() {
                   }}
                   onDelete={() => {
                     void (async () => {
+                      if (
+                        !selectedNode ||
+                        !nodes.some((n) => n._id === selectedNode)
+                      ) {
+                        return;
+                      }
                       try {
-                        await deleteNode({ id: selectedNode! });
+                        await deleteNode({ id: selectedNode });
                         handleCloseSidebar();
                         showSuccess("Node deleted successfully");
                       } catch (error) {
@@ -677,6 +735,7 @@ function ModelDetailPage() {
                     })();
                   }}
                   isReadOnly={isReadOnly}
+                  isNewlyCreated={selectedNode === newlyCreatedNodeId}
                 />
               </div>
             </>
