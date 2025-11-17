@@ -21,11 +21,66 @@ import {
   useMutation,
 } from "convex/react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
-import { Menu } from "lucide-react";
+import { Menu, CircleHelp, Bug, Github } from "lucide-react";
 import { useState, useEffect } from "react";
 import { api } from "../../convex/_generated/api";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { ToastProvider } from "../components/ToastContext";
+
+const GITHUB_REPO = "https://github.com/Crazytieguy/doomer-delta";
+const GITHUB_ISSUES = `${GITHUB_REPO}/issues`;
+
+function HelpLinks({ onLinkClick }: { onLinkClick?: () => void }) {
+  return (
+    <>
+      <li>
+        <a
+          href={GITHUB_ISSUES}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2"
+          onClick={onLinkClick}
+        >
+          <Bug className="w-4 h-4" />
+          Report an Issue
+        </a>
+      </li>
+      <li>
+        <a
+          href={GITHUB_REPO}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2"
+          onClick={onLinkClick}
+        >
+          <Github className="w-4 h-4" />
+          View on GitHub
+        </a>
+      </li>
+    </>
+  );
+}
+
+function HelpDropdown() {
+  return (
+    <div className="dropdown dropdown-end">
+      <button
+        type="button"
+        className="btn btn-ghost btn-circle"
+        aria-label="Help and feedback"
+        aria-haspopup="menu"
+      >
+        <CircleHelp className="w-5 h-5" />
+      </button>
+      <ul
+        role="menu"
+        className="dropdown-content menu p-2 shadow-lg bg-base-200 rounded-box w-56 mt-2 gap-1"
+      >
+        <HelpLinks />
+      </ul>
+    </div>
+  );
+}
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -39,7 +94,7 @@ function RootComponent() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
+    setIsSidebarOpen((prev) => !prev);
   };
 
   return (
@@ -105,7 +160,8 @@ function RootComponent() {
                           </Link>
                         </nav>
                       </div>
-                      <div className="navbar-end">
+                      <div className="navbar-end gap-2">
+                        <HelpDropdown />
                         <UserButton />
                       </div>
                     </header>
@@ -154,6 +210,11 @@ function RootComponent() {
                             </Link>
                           </li>
                         </ul>
+                        <div className="divider my-2"></div>
+                        <div className="menu-title mb-2 opacity-75">Help</div>
+                        <ul className="space-y-1">
+                          <HelpLinks onLinkClick={() => setIsSidebarOpen(false)} />
+                        </ul>
                       </div>
                       <div className="mt-auto py-4 border-t border-base-300/50 flex justify-center items-center">
                         <UserButton />
@@ -185,7 +246,8 @@ function RootComponent() {
                         Public Models
                       </Link>
                     </div>
-                    <div className="navbar-end">
+                    <div className="navbar-end gap-2">
+                      <HelpDropdown />
                       <SignInButton mode="modal">
                         <button className="btn btn-primary btn-sm">
                           Sign in
