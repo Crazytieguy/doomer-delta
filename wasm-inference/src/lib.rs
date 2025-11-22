@@ -8,6 +8,32 @@ mod bit_set;
 mod sample;
 mod serialize;
 
+const RELATIVE_TOL: f64 = 0.001;
+const ABSOLUTE_TOL: f64 = 0.0005;
+const MIN_SAMPLES: usize = 1000;
+const CHECK_INTERVAL: usize = 1000;
+const Z_SCORE: f64 = 1.96;
+
+fn has_converged(count: usize, n: usize) -> bool {
+    if n < MIN_SAMPLES {
+        return false;
+    }
+
+    #[allow(clippy::cast_precision_loss)]
+    let p_hat = count as f64 / n as f64;
+
+    let adjusted_count = count + 2;
+    let adjusted_n = n + 4;
+    #[allow(clippy::cast_precision_loss)]
+    let p_tilde = adjusted_count as f64 / adjusted_n as f64;
+    #[allow(clippy::cast_precision_loss)]
+    let margin = Z_SCORE * (p_tilde * (1.0 - p_tilde) / adjusted_n as f64).sqrt();
+
+    let threshold = ABSOLUTE_TOL.max(RELATIVE_TOL * p_hat);
+
+    margin < threshold
+}
+
 #[wasm_bindgen(start)]
 pub fn init_panic_hook() {
     console_error_panic_hook::set_once();
@@ -37,6 +63,10 @@ pub struct Node {
 #[wasm_bindgen]
 #[allow(clippy::missing_errors_doc)]
 pub fn compute_marginals(nodes: JsValue, num_samples: usize) -> Result<JsValue, JsValue> {
+    if num_samples == 0 {
+        return Err(JsValue::from_str("num_samples must be greater than 0"));
+    }
+
     let nodes: Vec<Node> = serde_wasm_bindgen::from_value(nodes)
         .map_err(|e| JsValue::from_str(&format!("Failed to deserialize nodes: {e}")))?;
 
@@ -50,14 +80,33 @@ pub fn compute_marginals(nodes: JsValue, num_samples: usize) -> Result<JsValue, 
     let num_nodes = u8::try_from(serialized.topo_order.len())
         .map_err(|_| JsValue::from_str("Too many nodes for u8"))?;
     let mut node_true_counts = vec![0usize; usize::from(num_nodes)];
+    let max_samples = num_samples;
+    let mut n = 0usize;
 
-    for _ in 0..num_samples {
-        let sample_result = sample::sample(&serialized.data, num_nodes, None, &mut rng)
-            .map_err(|e| JsValue::from_str(&format!("Sampling failed: {e}")))?;
+    loop {
+        for _ in 0..CHECK_INTERVAL.min(max_samples - n) {
+            let sample_result = sample::sample(&serialized.data, num_nodes, None, &mut rng)
+                .map_err(|e| JsValue::from_str(&format!("Sampling failed: {e}")))?;
 
-        for node_idx in 0..num_nodes {
-            if sample_result.contains(node_idx) {
-                node_true_counts[usize::from(node_idx)] += 1;
+            for node_idx in 0..num_nodes {
+                if sample_result.contains(node_idx) {
+                    node_true_counts[usize::from(node_idx)] += 1;
+                }
+            }
+            n += 1;
+        }
+
+        if n >= max_samples {
+            break;
+        }
+
+        if n >= MIN_SAMPLES {
+            let all_converged = node_true_counts
+                .iter()
+                .all(|&count| has_converged(count, n));
+
+            if all_converged {
+                break;
             }
         }
     }
@@ -68,7 +117,7 @@ pub fn compute_marginals(nodes: JsValue, num_samples: usize) -> Result<JsValue, 
         .into_iter()
         .zip(node_true_counts)
         .map(|(node_id, count)| {
-            let probability = count as f64 / num_samples as f64;
+            let probability = count as f64 / n as f64;
             (node_id, probability)
         })
         .collect();
@@ -84,6 +133,10 @@ pub fn compute_sensitivity(
     target_node_id: String,
     num_samples: usize,
 ) -> Result<JsValue, JsValue> {
+    if num_samples == 0 {
+        return Err(JsValue::from_str("num_samples must be greater than 0"));
+    }
+
     let nodes: Vec<Node> = serde_wasm_bindgen::from_value(nodes)
         .map_err(|e| JsValue::from_str(&format!("Failed to deserialize nodes: {e}")))?;
 
@@ -128,27 +181,42 @@ pub fn compute_sensitivity(
     getrandom::fill(&mut seed).map_err(|e| JsValue::from_str(&format!("RNG seed failed: {e}")))?;
     let mut rng = Xoshiro128Plus::from_seed(seed);
 
+    let max_samples = num_samples;
     let mut compute_intervention_prob =
         |ancestor_idx: u8, intervention_value: bool| -> Result<f64, JsValue> {
             let mut count = 0usize;
-            for _ in 0..num_samples {
-                let sample_result = sample::sample(
-                    &serialized.data,
-                    num_nodes,
-                    Some(sample::Intervention {
-                        on_node: ancestor_idx,
-                        value: intervention_value,
-                    }),
-                    &mut rng,
-                )
-                .map_err(|e| JsValue::from_str(&format!("Sampling failed: {e}")))?;
+            let mut n = 0usize;
 
-                if sample_result.contains(target_idx) {
-                    count += 1;
+            loop {
+                for _ in 0..CHECK_INTERVAL.min(max_samples - n) {
+                    let sample_result = sample::sample(
+                        &serialized.data,
+                        num_nodes,
+                        Some(sample::Intervention {
+                            on_node: ancestor_idx,
+                            value: intervention_value,
+                        }),
+                        &mut rng,
+                    )
+                    .map_err(|e| JsValue::from_str(&format!("Sampling failed: {e}")))?;
+
+                    if sample_result.contains(target_idx) {
+                        count += 1;
+                    }
+                    n += 1;
+                }
+
+                if n >= max_samples {
+                    break;
+                }
+
+                if n >= MIN_SAMPLES && has_converged(count, n) {
+                    break;
                 }
             }
+
             #[allow(clippy::cast_precision_loss)]
-            let probability = count as f64 / num_samples as f64;
+            let probability = count as f64 / n as f64;
             Ok(probability)
         };
 
