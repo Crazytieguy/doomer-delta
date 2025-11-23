@@ -2,12 +2,11 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { workerRequestSchema, type WorkerNode } from "../types/workerMessages";
 import * as wasm from "../../wasm-inference/pkg";
 
-const DEFAULT_NUM_SAMPLES = 100000;
-const SENSITIVITY_NUM_SAMPLES = 50000;
+const NUM_SAMPLES = 500_000;
 
 function computeMarginalProbabilities(
   nodes: WorkerNode[],
-  numSamples: number = DEFAULT_NUM_SAMPLES,
+  numSamples: number = NUM_SAMPLES,
 ): Map<Id<"nodes">, number> {
   if (nodes.length === 0) return new Map();
   if (numSamples <= 0) throw new Error("numSamples must be positive");
@@ -18,7 +17,7 @@ function computeMarginalProbabilities(
 function computeSensitivity(
   nodes: WorkerNode[],
   targetNodeId: Id<"nodes">,
-  numSamples: number = SENSITIVITY_NUM_SAMPLES,
+  numSamples: number = NUM_SAMPLES,
 ): Map<Id<"nodes">, number> {
   return wasm.compute_sensitivity(nodes, targetNodeId, numSamples) as Map<
     Id<"nodes">,
