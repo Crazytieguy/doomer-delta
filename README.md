@@ -50,10 +50,7 @@ pnpm dev
 ## Future Enhancements
 
 - Scalar (continuous) node types
-- Advanced CPT editing for multi-parent nodes
-- Sensitivity analysis
 - Model comparison tools
-- Inference engine for probability propagation
 
 ## License
 

@@ -198,7 +198,7 @@ function SortableRow({
       <td>
         <input
           type="number"
-          step="0.01"
+          step="0.001"
           min="0"
           max="1"
           className="input input-xs w-full font-mono"
@@ -578,7 +578,7 @@ export function CPTEditor({
         </label>
         <input
           type="number"
-          step="0.01"
+          step="0.001"
           min="0"
           max="1"
           className="input w-full font-mono"
