@@ -347,7 +347,7 @@ function ModelDetailPage() {
 
               {selectedNodeData && (
                 <>
-                  <PanelResizeHandle className="w-1 bg-accent/35 hover:bg-secondary transition-colors" />
+                  <PanelResizeHandle className="w-2 bg-base-300 hover:bg-accent/30 active:bg-accent/40 transition-all cursor-col-resize relative before:content-[''] before:absolute before:inset-y-0 before:left-1/2 before:-translate-x-1/2 before:w-0.5 before:my-auto before:h-8 before:bg-[repeating-linear-gradient(transparent,transparent_2px,currentColor_2px,currentColor_4px)] before:opacity-60 hover:before:opacity-90 active:before:opacity-100" />
                   <Panel
                     id="inspector"
                     order={2}
@@ -682,7 +682,7 @@ function ModelDetailPage() {
 
               {selectedNodeData && (
                 <>
-                  <PanelResizeHandle className="w-1 bg-accent/35 hover:bg-secondary transition-colors" />
+                  <PanelResizeHandle className="w-2 bg-base-300 hover:bg-accent/30 active:bg-accent/40 transition-all cursor-col-resize relative before:content-[''] before:absolute before:inset-y-0 before:left-1/2 before:-translate-x-1/2 before:w-0.5 before:my-auto before:h-8 before:bg-[repeating-linear-gradient(transparent,transparent_2px,currentColor_2px,currentColor_4px)] before:opacity-60 hover:before:opacity-90 active:before:opacity-100" />
                   <Panel
                     id="inspector"
                     order={2}
