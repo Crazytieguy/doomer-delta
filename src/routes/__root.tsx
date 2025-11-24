@@ -168,7 +168,15 @@ function RootComponent() {
                         </nav>
                       </div>
                       <div className="navbar-end gap-2">
-                        <HelpDropdown />
+                        <a
+                          href={GITHUB_REPO}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-ghost btn-circle"
+                          aria-label="View on GitHub"
+                        >
+                          <Github className="w-5 h-5" />
+                        </a>
                         <UserButton />
                       </div>
                     </header>
@@ -271,7 +279,15 @@ function RootComponent() {
                         </Link>
                       </div>
                       <div className="navbar-end gap-1">
-                        <HelpDropdown />
+                        <a
+                          href={GITHUB_REPO}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-ghost btn-circle btn-sm"
+                          aria-label="View on GitHub"
+                        >
+                          <Github className="w-5 h-5" />
+                        </a>
                         <SignInButton mode="modal">
                           <button className="btn btn-primary btn-sm">
                             Sign in

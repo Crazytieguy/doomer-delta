@@ -577,6 +577,16 @@ function GraphEditorInner({
             Double-click canvas to create node
           </Panel>
         )}
+        {!isReadOnly && dbNodes.length === 0 && (
+          <Panel
+            position="top-center"
+            className="mt-24 pointer-events-none select-none hidden sm:block"
+          >
+            <div className="text-center text-base-content/40 text-lg">
+              Double-click to create your first node
+            </div>
+          </Panel>
+        )}
         {marginalsState.isLoading && (
           <Panel
             position="top-right"

@@ -5,8 +5,10 @@ import { useConvexAuth, useMutation } from "convex/react";
 import {
   Copy,
   GitFork,
+  Github,
   Globe,
   GlobeLock,
+  HelpCircle,
   MoreVertical,
   UserPlus,
 } from "lucide-react";
@@ -17,6 +19,9 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { GraphEditor, NodeInspector } from "../components/GraphEditor";
 import { ShareDialog, type ShareDialogRef } from "../components/ShareDialog";
 import { useToast } from "../components/ToastContext";
+
+const GITHUB_ISSUES =
+  "https://github.com/Crazytieguy/delta/issues/new";
 
 function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(
@@ -63,6 +68,7 @@ interface MobileActionsMenuProps {
   onShare: () => void;
   onCopyLink: () => void;
   onFork: () => void;
+  onHelp: () => void;
 }
 
 function MobileActionsMenu({
@@ -74,6 +80,7 @@ function MobileActionsMenu({
   onShare,
   onCopyLink,
   onFork,
+  onHelp,
 }: MobileActionsMenuProps) {
   return (
     <div className="dropdown dropdown-end sm:hidden">
@@ -134,6 +141,12 @@ function MobileActionsMenu({
             )}
           </button>
         </li>
+        <li>
+          <button className="btn btn-sm btn-ghost" onClick={onHelp}>
+            <HelpCircle className="w-4 h-4" />
+            Help
+          </button>
+        </li>
       </ul>
     </div>
   );
@@ -161,6 +174,7 @@ function ModelDetailPage() {
   );
   const [hasModelChanges, setHasModelChanges] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const shareDialogRef = useRef<ShareDialogRef>(null);
   const isDesktop = useMediaQuery("(min-width: 640px)");
 
@@ -466,6 +480,14 @@ function ModelDetailPage() {
                       )}
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost btn-circle"
+                    onClick={() => setShowHelp(true)}
+                    aria-label="Help"
+                  >
+                    <HelpCircle className="w-5 h-5" />
+                  </button>
                 </div>
                 <MobileActionsMenu
                   isOwner={isOwner}
@@ -476,6 +498,7 @@ function ModelDetailPage() {
                   onShare={() => shareDialogRef.current?.openDialog()}
                   onCopyLink={handleCopyLink}
                   onFork={() => void handleFork()}
+                  onHelp={() => setShowHelp(true)}
                 />
               </div>
               <div className="flex items-center gap-2 text-sm opacity-60 mt-0 mb-2">
@@ -568,6 +591,14 @@ function ModelDetailPage() {
                       )}
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost btn-circle"
+                    onClick={() => setShowHelp(true)}
+                    aria-label="Help"
+                  >
+                    <HelpCircle className="w-5 h-5" />
+                  </button>
                 </div>
                 <MobileActionsMenu
                   isOwner={isOwner}
@@ -578,6 +609,7 @@ function ModelDetailPage() {
                   onShare={() => shareDialogRef.current?.openDialog()}
                   onCopyLink={handleCopyLink}
                   onFork={() => void handleFork()}
+                  onHelp={() => setShowHelp(true)}
                 />
               </div>
               <form
@@ -781,6 +813,96 @@ function ModelDetailPage() {
           modelId={modelId as Id<"models">}
           showButton={false}
         />
+      )}
+
+      {/* Help modal */}
+      {showHelp && (
+        <dialog
+          open
+          className="modal modal-open"
+          aria-label="Keyboard shortcuts and controls help"
+        >
+          <div className="modal-box">
+            <h3 className="font-bold text-lg mt-0">Quick Reference</h3>
+            <div className="py-4 space-y-4">
+              {!isReadOnly && (
+                <div>
+                  <h4 className="font-semibold mb-2 mt-0">
+                    Graph Interactions
+                  </h4>
+                  <ul className="space-y-1 text-sm">
+                    <li>
+                      <kbd className="kbd kbd-sm">Double-click</kbd> canvas →
+                      Create node
+                    </li>
+                    <li>
+                      <kbd className="kbd kbd-sm">Drag</kbd> from node to node →
+                      Create edge
+                    </li>
+                    <li>
+                      <kbd className="kbd kbd-sm">Click</kbd> node → Select and
+                      open inspector
+                    </li>
+                    <li>
+                      <kbd className="kbd kbd-sm">Drag</kbd> node → Reposition
+                    </li>
+                  </ul>
+                </div>
+              )}
+              {!isReadOnly && (
+                <div>
+                  <h4 className="font-semibold mb-2 mt-0">
+                    Keyboard Shortcuts
+                  </h4>
+                  <ul className="space-y-1 text-sm">
+                    <li>
+                      <kbd className="kbd kbd-sm">Delete</kbd> → Remove selected
+                      node or edge
+                    </li>
+                    <li>
+                      <kbd className="kbd kbd-sm">Esc</kbd> → Deselect
+                    </li>
+                  </ul>
+                </div>
+              )}
+              <div>
+                <h4 className="font-semibold mb-2 mt-0">Canvas Controls</h4>
+                <ul className="space-y-1 text-sm">
+                  <li>
+                    <kbd className="kbd kbd-sm">Scroll</kbd> → Zoom in/out
+                  </li>
+                  <li>
+                    <kbd className="kbd kbd-sm">Drag</kbd> canvas → Pan view
+                  </li>
+                  {isReadOnly && (
+                    <li>
+                      <kbd className="kbd kbd-sm">Click</kbd> node → View
+                      details
+                    </li>
+                  )}
+                </ul>
+              </div>
+              <div className="divider my-2"></div>
+              <div className="text-sm opacity-70">
+                <a
+                  href={GITHUB_ISSUES}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="link link-primary flex items-center gap-2"
+                >
+                  <Github className="w-4 h-4" />
+                  Report an issue or request a feature
+                </a>
+              </div>
+            </div>
+            <div className="modal-action mt-4">
+              <button className="btn" onClick={() => setShowHelp(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+          <div className="modal-backdrop" onClick={() => setShowHelp(false)} />
+        </dialog>
       )}
     </>
   );
