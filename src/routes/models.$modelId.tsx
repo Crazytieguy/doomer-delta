@@ -10,12 +10,17 @@ import {
   GlobeLock,
   HelpCircle,
   MoreVertical,
+  Trash2,
   UserPlus,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import {
+  DeleteModelDialog,
+  type DeleteModelDialogRef,
+} from "../components/DeleteModelDialog";
 import { GraphEditor, NodeInspector } from "../components/GraphEditor";
 import { ShareDialog, type ShareDialogRef } from "../components/ShareDialog";
 import { useToast } from "../components/ToastContext";
@@ -69,6 +74,7 @@ interface MobileActionsMenuProps {
   onCopyLink: () => void;
   onFork: () => void;
   onHelp: () => void;
+  onDelete: () => void;
 }
 
 function MobileActionsMenu({
@@ -81,6 +87,7 @@ function MobileActionsMenu({
   onCopyLink,
   onFork,
   onHelp,
+  onDelete,
 }: MobileActionsMenuProps) {
   return (
     <div className="dropdown dropdown-end sm:hidden">
@@ -147,6 +154,20 @@ function MobileActionsMenu({
             Help
           </button>
         </li>
+        {isOwner && (
+          <>
+            <div className="divider my-1"></div>
+            <li>
+              <button
+                className="btn btn-sm btn-error btn-outline"
+                onClick={onDelete}
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Model
+              </button>
+            </li>
+          </>
+        )}
       </ul>
     </div>
   );
@@ -176,6 +197,7 @@ function ModelDetailPage() {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const shareDialogRef = useRef<ShareDialogRef>(null);
+  const deleteDialogRef = useRef<DeleteModelDialogRef>(null);
   const isDesktop = useMediaQuery("(min-width: 640px)");
 
   const isOwner = model?.isOwner ?? false;
@@ -300,6 +322,14 @@ function ModelDetailPage() {
     const url = window.location.href;
     void navigator.clipboard.writeText(url);
     showSuccess("Link copied to clipboard");
+  };
+
+  const handleDelete = () => {
+    deleteDialogRef.current?.openDialog();
+  };
+
+  const handleModelDeleted = () => {
+    void navigate({ to: "/models/my" });
   };
 
   if (!model) {
@@ -488,6 +518,16 @@ function ModelDetailPage() {
                   >
                     <HelpCircle className="w-5 h-5" />
                   </button>
+                  {isOwner && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-error btn-outline btn-circle"
+                      onClick={handleDelete}
+                      aria-label="Delete model"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
                 <MobileActionsMenu
                   isOwner={isOwner}
@@ -499,6 +539,7 @@ function ModelDetailPage() {
                   onCopyLink={handleCopyLink}
                   onFork={() => void handleFork()}
                   onHelp={() => setShowHelp(true)}
+                  onDelete={handleDelete}
                 />
               </div>
               <div className="flex items-center gap-2 text-sm opacity-60 mt-0 mb-2">
@@ -599,6 +640,16 @@ function ModelDetailPage() {
                   >
                     <HelpCircle className="w-5 h-5" />
                   </button>
+                  {isOwner && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-error btn-outline btn-circle"
+                      onClick={handleDelete}
+                      aria-label="Delete model"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
                 <MobileActionsMenu
                   isOwner={isOwner}
@@ -610,6 +661,7 @@ function ModelDetailPage() {
                   onCopyLink={handleCopyLink}
                   onFork={() => void handleFork()}
                   onHelp={() => setShowHelp(true)}
+                  onDelete={handleDelete}
                 />
               </div>
               <form
@@ -812,6 +864,16 @@ function ModelDetailPage() {
           ref={shareDialogRef}
           modelId={modelId as Id<"models">}
           showButton={false}
+        />
+      )}
+
+      {/* DeleteModelDialog for owner-only model deletion */}
+      {isOwner && (
+        <DeleteModelDialog
+          ref={deleteDialogRef}
+          modelId={modelId as Id<"models">}
+          modelName={model.name}
+          onDeleted={handleModelDeleted}
         />
       )}
 

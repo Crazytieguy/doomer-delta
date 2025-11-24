@@ -74,6 +74,7 @@ function MyModelsPage() {
                   ? { text: "Public", variant: "primary" }
                   : undefined
               }
+              isOwner={true}
             />
           ))}
         </div>
