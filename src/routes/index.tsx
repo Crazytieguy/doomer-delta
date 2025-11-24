@@ -1,7 +1,7 @@
 import { SignUpButton } from "@clerk/clerk-react";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { Authenticated, Unauthenticated } from "convex/react";
-import { Network } from "lucide-react";
+import { LogoIcon } from "../components/LogoIcon";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
@@ -19,7 +19,7 @@ function HomePage() {
           <div className="not-prose flex justify-center mb-6">
             <div className="relative inline-block">
               <div className="absolute inset-0 bg-primary/20 rounded-full blur-2xl"></div>
-              <Network className="w-16 h-16 text-primary relative z-10" />
+              <LogoIcon className="w-16 h-16 text-primary relative z-10" />
             </div>
           </div>
           <h1>Bayesian World Models</h1>

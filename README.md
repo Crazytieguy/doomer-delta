@@ -1,4 +1,4 @@
-# Doomer Delta
+# Delta
 
 A Bayesian network world-model builder for creating, visualizing, and sharing probabilistic models.
 

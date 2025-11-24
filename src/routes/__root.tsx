@@ -21,13 +21,14 @@ import {
   useMutation,
 } from "convex/react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
-import { Menu, CircleHelp, Bug, Github, Home } from "lucide-react";
+import { Menu, CircleHelp, Bug, Github } from "lucide-react";
 import { useState, useEffect } from "react";
 import { api } from "../../convex/_generated/api";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { LogoIcon } from "../components/LogoIcon";
 import { ToastProvider } from "../components/ToastContext";
 
-const GITHUB_REPO = "https://github.com/Crazytieguy/doomer-delta";
+const GITHUB_REPO = "https://github.com/Crazytieguy/delta";
 const GITHUB_ISSUES = `${GITHUB_REPO}/issues`;
 
 function HelpLinks({ onLinkClick }: { onLinkClick?: () => void }) {
@@ -136,12 +137,10 @@ function RootComponent() {
                         </label>
                         <Link
                           to="/"
-                          className="btn btn-ghost normal-case text-xl font-semibold"
+                          className="btn btn-ghost normal-case text-xl font-semibold flex items-center gap-2"
                         >
-                          <span className="lg:hidden">
-                            <Home className="w-5 h-5" />
-                          </span>
-                          <span className="hidden lg:inline">Doomer Delta</span>
+                          <LogoIcon className="w-6 h-6" />
+                          <span className="hidden lg:inline">Delta</span>
                         </Link>
                       </div>
                       <div className="navbar-center hidden lg:flex">
@@ -253,12 +252,10 @@ function RootComponent() {
                         </label>
                         <Link
                           to="/"
-                          className="font-semibold text-lg hover:text-primary transition-colors"
+                          className="font-semibold text-lg hover:text-primary transition-colors flex items-center gap-2"
                         >
-                          <span className="lg:hidden">
-                            <Home className="w-5 h-5" />
-                          </span>
-                          <span className="hidden lg:inline">Doomer Delta</span>
+                          <LogoIcon className="w-6 h-6" />
+                          <span className="hidden lg:inline">Delta</span>
                         </Link>
                       </div>
                       <div className="navbar-center hidden lg:flex">

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Delta with bold right edge and vertex nodes -->
+  <path d="M50 22 L78 76 L22 76 Z" stroke="currentColor" stroke-width="5.5" fill="none" stroke-linejoin="round"/>
+  <path d="M50 22 L78 76" stroke="currentColor" stroke-width="11" stroke-linecap="round"/>
+  <circle cx="50" cy="22" r="8" fill="currentColor"/>
+  <circle cx="78" cy="76" r="8" fill="currentColor"/>
+  <circle cx="22" cy="76" r="8" fill="currentColor"/>
+</svg>
