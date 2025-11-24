@@ -1,6 +1,6 @@
 import { convexQuery } from "@convex-dev/react-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { Plus } from "lucide-react";
 import { api } from "../../convex/_generated/api";
@@ -23,6 +23,7 @@ export const Route = createFileRoute("/models/my")({
 });
 
 function MyModelsPage() {
+  const navigate = useNavigate();
   const { data: models } = useSuspenseQuery(modelsQueryOptions);
   const { data: sharedModels } = useSuspenseQuery(sharedModelsQueryOptions);
   const createModel = useMutation(api.models.create);
@@ -30,8 +31,9 @@ function MyModelsPage() {
 
   const handleCreateModel = async () => {
     try {
-      await createModel({ name: "New Model" });
+      const modelId = await createModel({ name: "New Model" });
       showSuccess("Model created successfully");
+      void navigate({ to: "/models/$modelId", params: { modelId } });
     } catch (error) {
       showError(error);
     }

@@ -148,26 +148,24 @@ function MobileActionsMenu({
             )}
           </button>
         </li>
+        {isOwner && (
+          <li>
+            <button
+              className="btn btn-sm btn-error btn-outline"
+              onClick={onDelete}
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete Model
+            </button>
+          </li>
+        )}
+        <div className="divider my-1"></div>
         <li>
           <button className="btn btn-sm btn-ghost" onClick={onHelp}>
             <HelpCircle className="w-4 h-4" />
             Help
           </button>
         </li>
-        {isOwner && (
-          <>
-            <div className="divider my-1"></div>
-            <li>
-              <button
-                className="btn btn-sm btn-error btn-outline"
-                onClick={onDelete}
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete Model
-              </button>
-            </li>
-          </>
-        )}
       </ul>
     </div>
   );
@@ -510,14 +508,6 @@ function ModelDetailPage() {
                       )}
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-ghost btn-circle"
-                    onClick={() => setShowHelp(true)}
-                    aria-label="Help"
-                  >
-                    <HelpCircle className="w-5 h-5" />
-                  </button>
                   {isOwner && (
                     <button
                       type="button"
@@ -528,6 +518,14 @@ function ModelDetailPage() {
                       <Trash2 className="w-4 h-4" />
                     </button>
                   )}
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost btn-circle"
+                    onClick={() => setShowHelp(true)}
+                    aria-label="Help"
+                  >
+                    <HelpCircle className="w-5 h-5" />
+                  </button>
                 </div>
                 <MobileActionsMenu
                   isOwner={isOwner}
@@ -632,14 +630,6 @@ function ModelDetailPage() {
                       )}
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-ghost btn-circle"
-                    onClick={() => setShowHelp(true)}
-                    aria-label="Help"
-                  >
-                    <HelpCircle className="w-5 h-5" />
-                  </button>
                   {isOwner && (
                     <button
                       type="button"
@@ -650,6 +640,14 @@ function ModelDetailPage() {
                       <Trash2 className="w-4 h-4" />
                     </button>
                   )}
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost btn-circle"
+                    onClick={() => setShowHelp(true)}
+                    aria-label="Help"
+                  >
+                    <HelpCircle className="w-5 h-5" />
+                  </button>
                 </div>
                 <MobileActionsMenu
                   isOwner={isOwner}

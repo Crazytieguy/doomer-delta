@@ -21,7 +21,7 @@ import {
   useMutation,
 } from "convex/react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
-import { Menu, CircleHelp, Bug, Github } from "lucide-react";
+import { Menu, Bug, Github } from "lucide-react";
 import { useState, useEffect } from "react";
 import { api } from "../../convex/_generated/api";
 import { ErrorBoundary } from "../components/ErrorBoundary";
@@ -59,27 +59,6 @@ function HelpLinks({ onLinkClick }: { onLinkClick?: () => void }) {
         </a>
       </li>
     </>
-  );
-}
-
-function HelpDropdown() {
-  return (
-    <div className="dropdown dropdown-end">
-      <button
-        type="button"
-        className="btn btn-ghost btn-circle"
-        aria-label="Help and feedback"
-        aria-haspopup="menu"
-      >
-        <CircleHelp className="w-5 h-5" />
-      </button>
-      <ul
-        role="menu"
-        className="dropdown-content menu p-2 shadow-lg bg-base-200 rounded-box w-56 mt-3 gap-1"
-      >
-        <HelpLinks />
-      </ul>
-    </div>
   );
 }
 
