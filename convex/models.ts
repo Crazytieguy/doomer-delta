@@ -282,6 +282,7 @@ export const fork = mutation({
     for (const node of nodes) {
       const newNodeId = await ctx.db.insert("nodes", {
         modelId: newModelId,
+        forkedFrom: node._id,
         title: node.title,
         description: node.description,
         x: node.x,

@@ -24,6 +24,7 @@ export default defineSchema({
 
   nodes: defineTable({
     modelId: v.id("models"),
+    forkedFrom: v.optional(v.id("nodes")),
     title: v.string(),
     description: v.optional(v.string()),
     x: v.number(),
