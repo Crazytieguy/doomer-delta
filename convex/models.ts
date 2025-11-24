@@ -129,7 +129,6 @@ export const update = mutation({
     id: v.id("models"),
     name: v.optional(v.string()),
     description: v.optional(v.string()),
-    isPublic: v.optional(v.boolean()),
     outputNodeId: v.optional(v.id("nodes")),
   },
   handler: async (ctx, args) => {
@@ -144,7 +143,6 @@ export const update = mutation({
     const updates: Partial<typeof model> = {};
     if (args.name !== undefined) updates.name = args.name;
     if (args.description !== undefined) updates.description = args.description;
-    if (args.isPublic !== undefined) updates.isPublic = args.isPublic;
     if (args.outputNodeId !== undefined) {
       const outputNode = await ctx.db.get(args.outputNodeId);
       if (!outputNode) {

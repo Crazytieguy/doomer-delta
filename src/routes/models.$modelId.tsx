@@ -494,19 +494,22 @@ function ModelDetailPage() {
               )}
             </>
           ) : (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void handleSaveModel();
-              }}
-            >
+            <>
               <div className="flex gap-4 items-center justify-between mb-2">
-                <input
-                  type="text"
-                  className="input input-ghost text-2xl sm:text-4xl font-bold w-full px-0 mb-0 flex-1"
-                  value={modelName}
-                  onChange={(e) => handleModelNameChange(e.target.value)}
-                />
+                <form
+                  className="flex-1"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void handleSaveModel();
+                  }}
+                >
+                  <input
+                    type="text"
+                    className="input input-ghost text-2xl sm:text-4xl font-bold w-full px-0 mb-0"
+                    value={modelName}
+                    onChange={(e) => handleModelNameChange(e.target.value)}
+                  />
+                </form>
                 <div className="not-prose hidden sm:flex gap-2 shrink-0 items-center">
                   {isOwner && (
                     <>
@@ -577,6 +580,12 @@ function ModelDetailPage() {
                   onFork={() => void handleFork()}
                 />
               </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void handleSaveModel();
+                }}
+              >
               <div
                 className="grid mb-4 after:invisible after:whitespace-pre-wrap after:content-[attr(data-value)] after:[grid-area:1/1] after:text-sm after:border after:border-solid after:border-[#0000] after:[line-height:1.5] after:py-1"
                 data-value={modelDescription || " "}
@@ -614,7 +623,8 @@ function ModelDetailPage() {
                   </button>
                 </div>
               )}
-            </form>
+              </form>
+            </>
           )}
         </div>
 
