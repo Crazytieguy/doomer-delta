@@ -1,10 +1,15 @@
 import { describe, it, expect } from "vitest";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { WorkerNode } from "../types/workerMessages";
-import {
-  computeMarginalProbabilities,
-  computeSensitivity,
-} from "./inference.worker";
+import { computeMarginalProbabilities } from "./inference.worker";
+
+function computeBaseMarginals(nodes: WorkerNode[]): Map<Id<"nodes">, number> {
+  const result = computeMarginalProbabilities(nodes, undefined);
+  if (!(result instanceof Map)) {
+    throw new Error("Expected Map result for baseline marginals");
+  }
+  return result;
+}
 
 const SAMPLING_PRECISION = 2;
 
@@ -31,7 +36,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { A: false }, probability: 0.2 },
       ]);
 
-      const probs = computeMarginalProbabilities([nodeA, nodeB]);
+      const probs = computeBaseMarginals([nodeA, nodeB]);
 
       expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(
         0.6,
@@ -57,7 +62,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { A: false, B: false }, probability: 0.1 },
       ]);
 
-      const probs = computeMarginalProbabilities([nodeA, nodeB, nodeC]);
+      const probs = computeBaseMarginals([nodeA, nodeB, nodeC]);
 
       expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(
         0.7,
@@ -91,7 +96,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { B: false }, probability: 0.1 },
       ]);
 
-      const probs = computeMarginalProbabilities([nodeA, nodeB, nodeC]);
+      const probs = computeBaseMarginals([nodeA, nodeB, nodeC]);
 
       expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(
         0.5,
@@ -135,7 +140,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { B: false, C: false }, probability: 0.1 },
       ]);
 
-      const probs = computeMarginalProbabilities([nodeA, nodeB, nodeC, nodeD]);
+      const probs = computeBaseMarginals([nodeA, nodeB, nodeC, nodeD]);
 
       expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(
         0.6,
@@ -165,7 +170,7 @@ describe("Bayesian Inference", () => {
     it("returns the node's prior probability", () => {
       const node = createNode("X", [{ parentStates: {}, probability: 0.75 }]);
 
-      const probs = computeMarginalProbabilities([node]);
+      const probs = computeBaseMarginals([node]);
 
       expect(probs.get("X" as Id<"nodes">)).toBeCloseTo(
         0.75,
@@ -185,7 +190,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { zzz_parent: false }, probability: 0.1 },
       ]);
 
-      const probs = computeMarginalProbabilities([nodeZ, nodeA]);
+      const probs = computeBaseMarginals([nodeZ, nodeA]);
 
       expect(probs.get("zzz_parent" as Id<"nodes">)).toBeCloseTo(
         0.3,
@@ -207,7 +212,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { m_middle: false }, probability: 0.3 },
       ]);
 
-      const probs = computeMarginalProbabilities([nodeM, nodeZ]);
+      const probs = computeBaseMarginals([nodeM, nodeZ]);
 
       expect(probs.get("m_middle" as Id<"nodes">)).toBeCloseTo(
         0.4,
@@ -236,7 +241,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { node_1: false, node_9: false }, probability: 0.05 },
       ]);
 
-      const probs = computeMarginalProbabilities([node1, node9, node5]);
+      const probs = computeBaseMarginals([node1, node9, node5]);
 
       expect(probs.get("node_1" as Id<"nodes">)).toBeCloseTo(
         0.25,
@@ -268,7 +273,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { A: false }, probability: 0.5 },
       ]);
 
-      const probs = computeMarginalProbabilities([nodeA, nodeB]);
+      const probs = computeBaseMarginals([nodeA, nodeB]);
 
       expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(
         0.1,
@@ -288,7 +293,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { A: false }, probability: 0.01 },
       ]);
 
-      const probs = computeMarginalProbabilities([nodeA, nodeB]);
+      const probs = computeBaseMarginals([nodeA, nodeB]);
 
       expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(
         0.5,
@@ -308,7 +313,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { A: false }, probability: 0.05 },
       ]);
 
-      const probs = computeMarginalProbabilities([nodeA, nodeB]);
+      const probs = computeBaseMarginals([nodeA, nodeB]);
 
       expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(
         0.9,
@@ -343,7 +348,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { n4: false }, probability: 0.15 },
       ]);
 
-      const probs = computeMarginalProbabilities([
+      const probs = computeBaseMarginals([
         node1,
         node2,
         node3,
@@ -401,7 +406,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { p: false }, probability: 0.4 },
       ]);
 
-      const probs = computeMarginalProbabilities([
+      const probs = computeBaseMarginals([
         parent,
         child1,
         child2,
@@ -436,7 +441,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { A: false }, probability: 0.001 },
       ]);
 
-      const probs = computeMarginalProbabilities([nodeA, nodeB]);
+      const probs = computeBaseMarginals([nodeA, nodeB]);
 
       expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(
         0.001,
@@ -461,7 +466,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { A: false, B: false }, probability: 0.5 },
       ]);
 
-      const probs = computeMarginalProbabilities([nodeA, nodeB, nodeC]);
+      const probs = computeBaseMarginals([nodeA, nodeB, nodeC]);
 
       expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(
         0.001,
@@ -490,7 +495,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { n2: false }, probability: 0.2 },
       ]);
 
-      const probs = computeMarginalProbabilities([node1, node2, node3]);
+      const probs = computeBaseMarginals([node1, node2, node3]);
 
       expect(probs.get("n1" as Id<"nodes">)).toBeCloseTo(
         0.3,
@@ -521,7 +526,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { n2: false }, probability: 0.2 },
       ]);
 
-      const probs = computeMarginalProbabilities([node3, node2, node1]);
+      const probs = computeBaseMarginals([node3, node2, node1]);
 
       expect(probs.get("n1" as Id<"nodes">)).toBeCloseTo(
         0.3,
@@ -556,7 +561,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { Z: false }, probability: 0.35 },
       ]);
 
-      const probs = computeMarginalProbabilities([nodeX, nodeY, nodeZ, nodeW]);
+      const probs = computeBaseMarginals([nodeX, nodeY, nodeZ, nodeW]);
 
       expect(probs.get("X" as Id<"nodes">)).toBeCloseTo(
         0.2,
@@ -590,7 +595,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { B: false, C: false }, probability: 0.1 },
       ]);
 
-      const probs = computeMarginalProbabilities([nodeD, nodeB, nodeA, nodeC]);
+      const probs = computeBaseMarginals([nodeD, nodeB, nodeA, nodeC]);
 
       expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(
         0.3,
@@ -646,7 +651,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { n7: false }, probability: 0.22 },
       ]);
 
-      const probs = computeMarginalProbabilities([
+      const probs = computeBaseMarginals([
         n5,
         n8,
         n2,
@@ -716,7 +721,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { A: false, B: null }, probability: 0.2 },
       ]);
 
-      const probs = computeMarginalProbabilities([nodeA, nodeB, nodeC]);
+      const probs = computeBaseMarginals([nodeA, nodeB, nodeC]);
 
       expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(
         0.6,
@@ -744,7 +749,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { A: null, B: null }, probability: 0.1 },
       ]);
 
-      const probs = computeMarginalProbabilities([nodeA, nodeB, nodeC]);
+      const probs = computeBaseMarginals([nodeA, nodeB, nodeC]);
 
       const expectedC =
         0.5 * 0.5 * 0.95 + 0.5 * 0.5 * 0.6 + 0.5 * 0.5 * 0.1 + 0.5 * 0.5 * 0.1;
@@ -763,7 +768,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { A: false }, probability: 0.1 },
       ]);
 
-      const probs = computeMarginalProbabilities([nodeA, nodeB]);
+      const probs = computeBaseMarginals([nodeA, nodeB]);
 
       expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(
         0.7,
@@ -776,7 +781,7 @@ describe("Bayesian Inference", () => {
     });
 
     it("handles empty nodes array", () => {
-      const probs = computeMarginalProbabilities([]);
+      const probs = computeBaseMarginals([]);
 
       expect(probs.size).toBe(0);
     });
@@ -791,7 +796,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { A: false }, probability: 0.5 },
       ]);
 
-      const probs = computeMarginalProbabilities([nodeA, nodeB]);
+      const probs = computeBaseMarginals([nodeA, nodeB]);
 
       expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(
         0.0,
@@ -811,7 +816,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { A: false }, probability: 0.9 },
       ]);
 
-      const probs = computeMarginalProbabilities([nodeA, nodeB]);
+      const probs = computeBaseMarginals([nodeA, nodeB]);
 
       expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(
         1.0,
@@ -842,7 +847,7 @@ describe("Bayesian Inference", () => {
         { parentStates: {}, probability: 0.5 },
       ]);
 
-      const probs = computeMarginalProbabilities([...parents, child]);
+      const probs = computeBaseMarginals([...parents, child]);
 
       expect(probs.get("child" as Id<"nodes">)).toBeDefined();
       expect(probs.get("child" as Id<"nodes">)).toBeGreaterThan(0);
@@ -866,7 +871,7 @@ describe("Bayesian Inference", () => {
         { parentStates: {}, probability: 0.5 },
       ]);
 
-      const probs = computeMarginalProbabilities([...parents, child]);
+      const probs = computeBaseMarginals([...parents, child]);
 
       expect(probs.get("child" as Id<"nodes">)).toBeCloseTo(
         0.5,
@@ -883,7 +888,7 @@ describe("Bayesian Inference", () => {
       ]);
 
       expect(() => {
-        computeMarginalProbabilities([nodeB]);
+        computeMarginalProbabilities([nodeB], undefined);
       }).toThrow(/references parent.*which is not in the node array/);
     });
   });
@@ -896,7 +901,7 @@ describe("Bayesian Inference", () => {
         { parentStates: {}, probability: 0.9 },
       ]);
 
-      const probs = computeMarginalProbabilities([node]);
+      const probs = computeBaseMarginals([node]);
 
       expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(
         0.7,
@@ -915,7 +920,7 @@ describe("Bayesian Inference", () => {
         { parentStates: { A: false }, probability: 0.2 },
       ]);
 
-      const probs = computeMarginalProbabilities([nodeA, nodeB]);
+      const probs = computeBaseMarginals([nodeA, nodeB]);
 
       expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(
         0.6,
@@ -928,43 +933,51 @@ describe("Bayesian Inference", () => {
     });
   });
 
-  describe("Sensitivity Analysis", () => {
+  describe("Intervention-based marginals", () => {
     describe("Simple A→B network", () => {
-      it("computes sensitivity of B to A", () => {
+      it("computes both true and false cases for intervention on A", () => {
         const nodeA = createNode("A", [{ parentStates: {}, probability: 0.6 }]);
         const nodeB = createNode("B", [
           { parentStates: { A: true }, probability: 0.8 },
           { parentStates: { A: false }, probability: 0.2 },
         ]);
 
-        const sensitivities = computeSensitivity(
-          [nodeA, nodeB],
-          "B" as Id<"nodes">,
-        );
-
-        expect(sensitivities.size).toBe(1);
-        expect(sensitivities.has("A" as Id<"nodes">)).toBe(true);
-        expect(sensitivities.get("A" as Id<"nodes">)).toBeCloseTo(0.6, 1);
-      });
-
-      it("returns empty map for root node with no ancestors", () => {
-        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.6 }]);
-        const nodeB = createNode("B", [
-          { parentStates: { A: true }, probability: 0.8 },
-          { parentStates: { A: false }, probability: 0.2 },
-        ]);
-
-        const sensitivities = computeSensitivity(
+        const result = computeMarginalProbabilities(
           [nodeA, nodeB],
           "A" as Id<"nodes">,
-        );
+        ) as { trueCase: Map<Id<"nodes">, number>; falseCase: Map<Id<"nodes">, number> };
 
-        expect(sensitivities.size).toBe(0);
+        expect(result.trueCase).toBeDefined();
+        expect(result.falseCase).toBeDefined();
+
+        // When A is forced to true, P(B) should be 0.8
+        expect(result.trueCase.get("A" as Id<"nodes">)).toBeCloseTo(1.0, SAMPLING_PRECISION);
+        expect(result.trueCase.get("B" as Id<"nodes">)).toBeCloseTo(0.8, SAMPLING_PRECISION);
+
+        // When A is forced to false, P(B) should be 0.2
+        expect(result.falseCase.get("A" as Id<"nodes">)).toBeCloseTo(0.0, SAMPLING_PRECISION);
+        expect(result.falseCase.get("B" as Id<"nodes">)).toBeCloseTo(0.2, SAMPLING_PRECISION);
+      });
+
+      it("returns simple marginals when no intervention specified", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.6 }]);
+        const nodeB = createNode("B", [
+          { parentStates: { A: true }, probability: 0.8 },
+          { parentStates: { A: false }, probability: 0.2 },
+        ]);
+
+        const result = computeMarginalProbabilities([nodeA, nodeB], undefined);
+
+        expect(result instanceof Map).toBe(true);
+        const probs = result as Map<Id<"nodes">, number>;
+        expect(probs.get("A" as Id<"nodes">)).toBeCloseTo(0.6, SAMPLING_PRECISION);
+        // P(B) = P(A)*P(B|A=true) + P(~A)*P(B|A=false) = 0.6*0.8 + 0.4*0.2 = 0.56
+        expect(probs.get("B" as Id<"nodes">)).toBeCloseTo(0.56, SAMPLING_PRECISION);
       });
     });
 
     describe("Chain A→B→C network", () => {
-      it("includes all ancestors in sensitivity analysis", () => {
+      it("computes intervention on root node A", () => {
         const nodeA = createNode("A", [{ parentStates: {}, probability: 0.7 }]);
         const nodeB = createNode("B", [
           { parentStates: { A: true }, probability: 0.8 },
@@ -975,19 +988,47 @@ describe("Bayesian Inference", () => {
           { parentStates: { B: false }, probability: 0.1 },
         ]);
 
-        const sensitivities = computeSensitivity(
+        const result = computeMarginalProbabilities(
           [nodeA, nodeB, nodeC],
-          "C" as Id<"nodes">,
-        );
+          "A" as Id<"nodes">,
+        ) as { trueCase: Map<Id<"nodes">, number>; falseCase: Map<Id<"nodes">, number> };
 
-        expect(sensitivities.size).toBe(2);
-        expect(sensitivities.has("A" as Id<"nodes">)).toBe(true);
-        expect(sensitivities.has("B" as Id<"nodes">)).toBe(true);
+        // When A=true: P(B|A=true)=0.8, P(C|B=true)=0.9, P(C|B=false)=0.1
+        // P(C) = 0.8*0.9 + 0.2*0.1 = 0.74
+        expect(result.trueCase.get("C" as Id<"nodes">)).toBeCloseTo(0.74, SAMPLING_PRECISION);
+
+        // When A=false: P(B|A=false)=0.3, P(C) = 0.3*0.9 + 0.7*0.1 = 0.34
+        expect(result.falseCase.get("C" as Id<"nodes">)).toBeCloseTo(0.34, SAMPLING_PRECISION);
+      });
+
+      it("computes intervention on middle node B", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.7 }]);
+        const nodeB = createNode("B", [
+          { parentStates: { A: true }, probability: 0.8 },
+          { parentStates: { A: false }, probability: 0.3 },
+        ]);
+        const nodeC = createNode("C", [
+          { parentStates: { B: true }, probability: 0.9 },
+          { parentStates: { B: false }, probability: 0.1 },
+        ]);
+
+        const result = computeMarginalProbabilities(
+          [nodeA, nodeB, nodeC],
+          "B" as Id<"nodes">,
+        ) as { trueCase: Map<Id<"nodes">, number>; falseCase: Map<Id<"nodes">, number> };
+
+        // When B=true: P(C|B=true)=0.9, A is independent
+        expect(result.trueCase.get("A" as Id<"nodes">)).toBeCloseTo(0.7, SAMPLING_PRECISION);
+        expect(result.trueCase.get("C" as Id<"nodes">)).toBeCloseTo(0.9, SAMPLING_PRECISION);
+
+        // When B=false: P(C|B=false)=0.1
+        expect(result.falseCase.get("A" as Id<"nodes">)).toBeCloseTo(0.7, SAMPLING_PRECISION);
+        expect(result.falseCase.get("C" as Id<"nodes">)).toBeCloseTo(0.1, SAMPLING_PRECISION);
       });
     });
 
     describe("V-structure (A→C←B)", () => {
-      it("includes both parents in sensitivity", () => {
+      it("computes intervention on one parent", () => {
         const nodeA = createNode("A", [{ parentStates: {}, probability: 0.7 }]);
         const nodeB = createNode("B", [{ parentStates: {}, probability: 0.4 }]);
         const nodeC = createNode("C", [
@@ -997,43 +1038,25 @@ describe("Bayesian Inference", () => {
           { parentStates: { A: false, B: false }, probability: 0.1 },
         ]);
 
-        const sensitivities = computeSensitivity(
+        const result = computeMarginalProbabilities(
           [nodeA, nodeB, nodeC],
-          "C" as Id<"nodes">,
-        );
+          "A" as Id<"nodes">,
+        ) as { trueCase: Map<Id<"nodes">, number>; falseCase: Map<Id<"nodes">, number> };
 
-        expect(sensitivities.size).toBe(2);
-        expect(sensitivities.has("A" as Id<"nodes">)).toBe(true);
-        expect(sensitivities.has("B" as Id<"nodes">)).toBe(true);
-      });
-    });
+        // B should remain at its natural probability in both cases
+        expect(result.trueCase.get("B" as Id<"nodes">)).toBeCloseTo(0.4, SAMPLING_PRECISION);
+        expect(result.falseCase.get("B" as Id<"nodes">)).toBeCloseTo(0.4, SAMPLING_PRECISION);
 
-    describe("Sensitivity value bounds", () => {
-      it("returns values between -1 and 1", () => {
-        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.5 }]);
-        const nodeB = createNode("B", [{ parentStates: {}, probability: 0.5 }]);
-        const nodeC = createNode("C", [
-          { parentStates: { A: true, B: true }, probability: 0.9 },
-          { parentStates: { A: true, B: false }, probability: 0.7 },
-          { parentStates: { A: false, B: true }, probability: 0.3 },
-          { parentStates: { A: false, B: false }, probability: 0.1 },
-        ]);
+        // When A=true: P(C) = 0.4*0.9 + 0.6*0.7 = 0.78
+        expect(result.trueCase.get("C" as Id<"nodes">)).toBeCloseTo(0.78, SAMPLING_PRECISION);
 
-        const sensitivities = computeSensitivity(
-          [nodeA, nodeB, nodeC],
-          "C" as Id<"nodes">,
-          100000,
-        );
-
-        for (const [_nodeId, sensitivity] of sensitivities) {
-          expect(sensitivity).toBeGreaterThanOrEqual(-1);
-          expect(sensitivity).toBeLessThanOrEqual(1);
-        }
+        // When A=false: P(C) = 0.4*0.6 + 0.6*0.1 = 0.30
+        expect(result.falseCase.get("C" as Id<"nodes">)).toBeCloseTo(0.30, SAMPLING_PRECISION);
       });
     });
 
     describe("Diamond structure (A→B, A→C, B→D, C→D)", () => {
-      it("includes all ancestors through multiple paths", () => {
+      it("computes intervention on root node", () => {
         const nodeA = createNode("A", [{ parentStates: {}, probability: 0.6 }]);
         const nodeB = createNode("B", [
           { parentStates: { A: true }, probability: 0.7 },
@@ -1050,180 +1073,60 @@ describe("Bayesian Inference", () => {
           { parentStates: { B: false, C: false }, probability: 0.1 },
         ]);
 
-        const sensitivities = computeSensitivity(
+        const result = computeMarginalProbabilities(
           [nodeA, nodeB, nodeC, nodeD],
-          "D" as Id<"nodes">,
-        );
+          "A" as Id<"nodes">,
+        ) as { trueCase: Map<Id<"nodes">, number>; falseCase: Map<Id<"nodes">, number> };
 
-        expect(sensitivities.size).toBe(3);
-        expect(sensitivities.has("A" as Id<"nodes">)).toBe(true);
-        expect(sensitivities.has("B" as Id<"nodes">)).toBe(true);
-        expect(sensitivities.has("C" as Id<"nodes">)).toBe(true);
-      });
+        // When A=true, both B and C are more likely true, so D should have higher probability
+        const probDTrue = result.trueCase.get("D" as Id<"nodes">);
+        const probDFalse = result.falseCase.get("D" as Id<"nodes">);
 
-      it("computes non-zero sensitivity for distant ancestor A", () => {
-        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.6 }]);
-        const nodeB = createNode("B", [
-          { parentStates: { A: true }, probability: 0.7 },
-          { parentStates: { A: false }, probability: 0.3 },
-        ]);
-        const nodeC = createNode("C", [
-          { parentStates: { A: true }, probability: 0.8 },
-          { parentStates: { A: false }, probability: 0.2 },
-        ]);
-        const nodeD = createNode("D", [
-          { parentStates: { B: true, C: true }, probability: 0.95 },
-          { parentStates: { B: true, C: false }, probability: 0.6 },
-          { parentStates: { B: false, C: true }, probability: 0.5 },
-          { parentStates: { B: false, C: false }, probability: 0.1 },
-        ]);
-
-        const sensitivities = computeSensitivity(
-          [nodeA, nodeB, nodeC, nodeD],
-          "D" as Id<"nodes">,
-        );
-
-        const sensitivityA = sensitivities.get("A" as Id<"nodes">);
-        expect(sensitivityA).toBeDefined();
-        expect(Math.abs(sensitivityA!)).toBeGreaterThan(0.1);
+        expect(probDTrue).toBeDefined();
+        expect(probDFalse).toBeDefined();
+        expect(probDTrue!).toBeGreaterThan(probDFalse!);
       });
     });
 
-    describe("Long chain (5 nodes)", () => {
-      it("includes all ancestors in long chain", () => {
-        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.7 }]);
-        const nodeB = createNode("B", [
-          { parentStates: { A: true }, probability: 0.8 },
-          { parentStates: { A: false }, probability: 0.2 },
-        ]);
-        const nodeC = createNode("C", [
-          { parentStates: { B: true }, probability: 0.75 },
-          { parentStates: { B: false }, probability: 0.25 },
-        ]);
-        const nodeD = createNode("D", [
-          { parentStates: { C: true }, probability: 0.85 },
-          { parentStates: { C: false }, probability: 0.15 },
-        ]);
-        const nodeE = createNode("E", [
-          { parentStates: { D: true }, probability: 0.9 },
-          { parentStates: { D: false }, probability: 0.1 },
-        ]);
+    describe("Independent nodes", () => {
+      it("intervention does not affect independent nodes", () => {
+        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.5 }]);
+        const nodeB = createNode("B", [{ parentStates: {}, probability: 0.7 }]);
 
-        const sensitivities = computeSensitivity(
-          [nodeA, nodeB, nodeC, nodeD, nodeE],
-          "E" as Id<"nodes">,
-        );
+        const result = computeMarginalProbabilities(
+          [nodeA, nodeB],
+          "A" as Id<"nodes">,
+        ) as { trueCase: Map<Id<"nodes">, number>; falseCase: Map<Id<"nodes">, number> };
 
-        expect(sensitivities.size).toBe(4);
-        expect(sensitivities.has("A" as Id<"nodes">)).toBe(true);
-        expect(sensitivities.has("B" as Id<"nodes">)).toBe(true);
-        expect(sensitivities.has("C" as Id<"nodes">)).toBe(true);
-        expect(sensitivities.has("D" as Id<"nodes">)).toBe(true);
-      });
-
-      it("shows decreasing sensitivity with distance", () => {
-        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.7 }]);
-        const nodeB = createNode("B", [
-          { parentStates: { A: true }, probability: 0.8 },
-          { parentStates: { A: false }, probability: 0.2 },
-        ]);
-        const nodeC = createNode("C", [
-          { parentStates: { B: true }, probability: 0.75 },
-          { parentStates: { B: false }, probability: 0.25 },
-        ]);
-        const nodeD = createNode("D", [
-          { parentStates: { C: true }, probability: 0.85 },
-          { parentStates: { C: false }, probability: 0.15 },
-        ]);
-
-        const sensitivities = computeSensitivity(
-          [nodeA, nodeB, nodeC, nodeD],
-          "D" as Id<"nodes">,
-          100000,
-        );
-
-        const sensA = Math.abs(sensitivities.get("A" as Id<"nodes">)!);
-        const sensB = Math.abs(sensitivities.get("B" as Id<"nodes">)!);
-        const sensC = Math.abs(sensitivities.get("C" as Id<"nodes">)!);
-
-        expect(sensC).toBeGreaterThan(sensB);
-        expect(sensB).toBeGreaterThan(sensA);
+        // B should remain at 0.7 regardless of intervention on A
+        expect(result.trueCase.get("B" as Id<"nodes">)).toBeCloseTo(0.7, SAMPLING_PRECISION);
+        expect(result.falseCase.get("B" as Id<"nodes">)).toBeCloseTo(0.7, SAMPLING_PRECISION);
       });
     });
 
-    describe("Disconnected nodes", () => {
-      it("excludes nodes that are not ancestors", () => {
-        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.6 }]);
-        const nodeB = createNode("B", [
-          { parentStates: { A: true }, probability: 0.8 },
-          { parentStates: { A: false }, probability: 0.2 },
-        ]);
-        const nodeX = createNode("X", [{ parentStates: {}, probability: 0.5 }]);
-        const nodeY = createNode("Y", [
-          { parentStates: { X: true }, probability: 0.7 },
-          { parentStates: { X: false }, probability: 0.3 },
-        ]);
-
-        const sensitivities = computeSensitivity(
-          [nodeA, nodeB, nodeX, nodeY],
-          "B" as Id<"nodes">,
-        );
-
-        expect(sensitivities.size).toBe(1);
-        expect(sensitivities.has("A" as Id<"nodes">)).toBe(true);
-        expect(sensitivities.has("X" as Id<"nodes">)).toBe(false);
-        expect(sensitivities.has("Y" as Id<"nodes">)).toBe(false);
-      });
-    });
-
-    describe("Negative sensitivity", () => {
-      it("computes negative sensitivity when intervention reduces probability", () => {
+    describe("Negative sensitivity cases", () => {
+      it("handles intervention that decreases probability", () => {
         const nodeA = createNode("A", [{ parentStates: {}, probability: 0.5 }]);
         const nodeB = createNode("B", [
           { parentStates: { A: true }, probability: 0.2 },
           { parentStates: { A: false }, probability: 0.8 },
         ]);
 
-        const sensitivities = computeSensitivity(
+        const result = computeMarginalProbabilities(
           [nodeA, nodeB],
-          "B" as Id<"nodes">,
-          100000,
-        );
+          "A" as Id<"nodes">,
+        ) as { trueCase: Map<Id<"nodes">, number>; falseCase: Map<Id<"nodes">, number> };
 
-        const sensitivityA = sensitivities.get("A" as Id<"nodes">);
-        expect(sensitivityA).toBeDefined();
-        expect(sensitivityA!).toBeLessThan(0);
-        expect(sensitivityA!).toBeCloseTo(-0.6, 1);
+        // When A=true, B is less likely (0.2)
+        expect(result.trueCase.get("B" as Id<"nodes">)).toBeCloseTo(0.2, SAMPLING_PRECISION);
+
+        // When A=false, B is more likely (0.8)
+        expect(result.falseCase.get("B" as Id<"nodes">)).toBeCloseTo(0.8, SAMPLING_PRECISION);
       });
     });
 
-    describe("Three-parent node", () => {
-      it("includes all three parents in sensitivity", () => {
-        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.6 }]);
-        const nodeB = createNode("B", [{ parentStates: {}, probability: 0.5 }]);
-        const nodeC = createNode("C", [{ parentStates: {}, probability: 0.4 }]);
-        const nodeD = createNode("D", [
-          { parentStates: { A: true, B: true, C: true }, probability: 0.95 },
-          { parentStates: { A: true, B: true, C: false }, probability: 0.7 },
-          { parentStates: { A: true, B: false, C: true }, probability: 0.6 },
-          { parentStates: { A: false, B: true, C: true }, probability: 0.5 },
-          { parentStates: {}, probability: 0.3 },
-        ]);
-
-        const sensitivities = computeSensitivity(
-          [nodeA, nodeB, nodeC, nodeD],
-          "D" as Id<"nodes">,
-        );
-
-        expect(sensitivities.size).toBe(3);
-        expect(sensitivities.has("A" as Id<"nodes">)).toBe(true);
-        expect(sensitivities.has("B" as Id<"nodes">)).toBe(true);
-        expect(sensitivities.has("C" as Id<"nodes">)).toBe(true);
-      });
-    });
-
-    describe("Wildcard CPT in sensitivity", () => {
-      it("handles wildcards in target node CPT", () => {
+    describe("Wildcards in CPT", () => {
+      it("handles wildcards with interventions", () => {
         const nodeA = createNode("A", [{ parentStates: {}, probability: 0.6 }]);
         const nodeB = createNode("B", [{ parentStates: {}, probability: 0.5 }]);
         const nodeC = createNode("C", [
@@ -1231,131 +1134,20 @@ describe("Bayesian Inference", () => {
           { parentStates: { A: false, B: null }, probability: 0.3 },
         ]);
 
-        const sensitivities = computeSensitivity(
+        const result = computeMarginalProbabilities(
           [nodeA, nodeB, nodeC],
-          "C" as Id<"nodes">,
-        );
+          "A" as Id<"nodes">,
+        ) as { trueCase: Map<Id<"nodes">, number>; falseCase: Map<Id<"nodes">, number> };
 
-        expect(sensitivities.size).toBe(2);
-        expect(sensitivities.has("A" as Id<"nodes">)).toBe(true);
-        expect(sensitivities.has("B" as Id<"nodes">)).toBe(true);
-      });
-    });
+        // When A=true: P(C) = 0.8 (regardless of B due to wildcard)
+        expect(result.trueCase.get("C" as Id<"nodes">)).toBeCloseTo(0.8, SAMPLING_PRECISION);
 
-    describe("Asymmetric probabilities", () => {
-      it("computes sensitivity with extreme probabilities", () => {
-        const nodeA = createNode("A", [
-          { parentStates: {}, probability: 0.99 },
-        ]);
-        const nodeB = createNode("B", [
-          { parentStates: { A: true }, probability: 0.95 },
-          { parentStates: { A: false }, probability: 0.05 },
-        ]);
+        // When A=false: P(C) = 0.3
+        expect(result.falseCase.get("C" as Id<"nodes">)).toBeCloseTo(0.3, SAMPLING_PRECISION);
 
-        const sensitivities = computeSensitivity(
-          [nodeA, nodeB],
-          "B" as Id<"nodes">,
-          100000,
-        );
-
-        const sensitivityA = sensitivities.get("A" as Id<"nodes">);
-        expect(sensitivityA).toBeDefined();
-        expect(sensitivityA!).toBeGreaterThan(0.8);
-        expect(sensitivityA!).toBeLessThan(1.0);
-      });
-    });
-
-    describe("Intervention validation", () => {
-      it("computes correct sensitivity with known intervention effects", () => {
-        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.5 }]);
-        const nodeB = createNode("B", [
-          { parentStates: { A: true }, probability: 0.9 },
-          { parentStates: { A: false }, probability: 0.1 },
-        ]);
-
-        const sensitivities = computeSensitivity(
-          [nodeA, nodeB],
-          "B" as Id<"nodes">,
-          100000,
-        );
-
-        const sensitivityA = sensitivities.get("A" as Id<"nodes">);
-        expect(sensitivityA).toBeDefined();
-        expect(sensitivityA!).toBeCloseTo(0.8, 1);
-      });
-
-      it("intervention on true forces probability to 1.0", () => {
-        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.3 }]);
-        const nodeB = createNode("B", [
-          { parentStates: { A: true }, probability: 0.7 },
-          { parentStates: { A: false }, probability: 0.2 },
-        ]);
-
-        const sensitivities = computeSensitivity(
-          [nodeA, nodeB],
-          "B" as Id<"nodes">,
-          100000,
-        );
-
-        const sensitivityA = sensitivities.get("A" as Id<"nodes">);
-        expect(sensitivityA).toBeDefined();
-        expect(sensitivityA!).toBeCloseTo(0.5, 1);
-      });
-
-      it("intervention breaks correlation correctly", () => {
-        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.6 }]);
-        const nodeB = createNode("B", [
-          { parentStates: { A: true }, probability: 1.0 },
-          { parentStates: { A: false }, probability: 0.0 },
-        ]);
-
-        const sensitivities = computeSensitivity(
-          [nodeA, nodeB],
-          "B" as Id<"nodes">,
-          100000,
-        );
-
-        const sensitivityA = sensitivities.get("A" as Id<"nodes">);
-        expect(sensitivityA).toBeDefined();
-        expect(sensitivityA!).toBeCloseTo(1.0, 1);
-      });
-
-      it("intervention on independent nodes shows zero sensitivity", () => {
-        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.5 }]);
-        const nodeB = createNode("B", [{ parentStates: {}, probability: 0.7 }]);
-
-        const sensitivities = computeSensitivity(
-          [nodeA, nodeB],
-          "B" as Id<"nodes">,
-          100000,
-        );
-
-        expect(sensitivities.size).toBe(0);
-      });
-
-      it("intervention respects conditional probabilities", () => {
-        const nodeA = createNode("A", [{ parentStates: {}, probability: 0.4 }]);
-        const nodeB = createNode("B", [{ parentStates: {}, probability: 0.6 }]);
-        const nodeC = createNode("C", [
-          { parentStates: { A: true, B: true }, probability: 0.95 },
-          { parentStates: { A: true, B: false }, probability: 0.6 },
-          { parentStates: { A: false, B: true }, probability: 0.5 },
-          { parentStates: { A: false, B: false }, probability: 0.1 },
-        ]);
-
-        const sensitivities = computeSensitivity(
-          [nodeA, nodeB, nodeC],
-          "C" as Id<"nodes">,
-          100000,
-        );
-
-        const sensA = sensitivities.get("A" as Id<"nodes">);
-        const sensB = sensitivities.get("B" as Id<"nodes">);
-
-        expect(sensA).toBeDefined();
-        expect(sensB).toBeDefined();
-        expect(Math.abs(sensA!)).toBeGreaterThan(0.1);
-        expect(Math.abs(sensB!)).toBeGreaterThan(0.1);
+        // B should remain at its natural probability
+        expect(result.trueCase.get("B" as Id<"nodes">)).toBeCloseTo(0.5, SAMPLING_PRECISION);
+        expect(result.falseCase.get("B" as Id<"nodes">)).toBeCloseTo(0.5, SAMPLING_PRECISION);
       });
     });
   });

@@ -2,30 +2,27 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { workerRequestSchema, type WorkerNode } from "../types/workerMessages";
 import * as wasm from "../../wasm-inference/pkg";
 
-const NUM_SAMPLES = 500_000;
+const NUM_SAMPLES = 1_000_000;
 
 function computeMarginalProbabilities(
   nodes: WorkerNode[],
+  interventionNodeId: Id<"nodes"> | undefined,
   numSamples: number = NUM_SAMPLES,
-): Map<Id<"nodes">, number> {
+):
+  | Map<Id<"nodes">, number>
+  | { trueCase: Map<Id<"nodes">, number>; falseCase: Map<Id<"nodes">, number> } {
   if (nodes.length === 0) return new Map();
   if (numSamples <= 0) throw new Error("numSamples must be positive");
 
-  return wasm.compute_marginals(nodes, numSamples) as Map<Id<"nodes">, number>;
+  return wasm.compute_marginals(nodes, numSamples, interventionNodeId) as
+    | Map<Id<"nodes">, number>
+    | {
+        trueCase: Map<Id<"nodes">, number>;
+        falseCase: Map<Id<"nodes">, number>;
+      };
 }
 
-function computeSensitivity(
-  nodes: WorkerNode[],
-  targetNodeId: Id<"nodes">,
-  numSamples: number = NUM_SAMPLES,
-): Map<Id<"nodes">, number> {
-  return wasm.compute_sensitivity(nodes, targetNodeId, numSamples) as Map<
-    Id<"nodes">,
-    number
-  >;
-}
-
-export { computeMarginalProbabilities, computeSensitivity };
+export { computeMarginalProbabilities };
 
 if (typeof self !== "undefined" && "onmessage" in self) {
   self.postMessage({ type: "WORKER_READY" });
@@ -35,24 +32,24 @@ if (typeof self !== "undefined" && "onmessage" in self) {
       const message = workerRequestSchema.parse(event.data);
 
       if (message.type === "COMPUTE_MARGINALS") {
-        const probabilities = computeMarginalProbabilities(message.nodes);
-
-        self.postMessage({
-          type: "MARGINALS_RESULT",
-          requestId: message.requestId,
-          probabilities,
-        });
-      } else if (message.type === "COMPUTE_SENSITIVITY") {
-        const sensitivities = computeSensitivity(
+        const result = computeMarginalProbabilities(
           message.nodes,
-          message.targetNodeId,
+          message.interventionNodeId,
         );
 
-        self.postMessage({
-          type: "SENSITIVITY_COMPLETE",
-          requestId: message.requestId,
-          sensitivities,
-        });
+        if (result instanceof Map) {
+          self.postMessage({
+            type: "MARGINALS_RESULT",
+            requestId: message.requestId,
+            probabilities: result,
+          });
+        } else {
+          self.postMessage({
+            type: "MARGINALS_RESULT",
+            requestId: message.requestId,
+            interventionResult: result,
+          });
+        }
       }
     } catch (error) {
       self.postMessage({

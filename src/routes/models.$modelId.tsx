@@ -21,7 +21,7 @@ import {
   DeleteModelDialog,
   type DeleteModelDialogRef,
 } from "../components/DeleteModelDialog";
-import { GraphEditor, NodeInspector } from "../components/GraphEditor";
+import { GraphEditor, NodeInspector, type ToggleInterventionFn } from "../components/GraphEditor";
 import { ShareDialog, type ShareDialogRef } from "../components/ShareDialog";
 import { useToast } from "../components/ToastContext";
 
@@ -194,8 +194,12 @@ function ModelDetailPage() {
   const [hasModelChanges, setHasModelChanges] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [interventionNodes, setInterventionNodes] = useState<
+    Set<Id<"nodes">> | undefined
+  >(undefined);
   const shareDialogRef = useRef<ShareDialogRef>(null);
   const deleteDialogRef = useRef<DeleteModelDialogRef>(null);
+  const toggleInterventionRef = useRef<ToggleInterventionFn | null>(null);
   const isDesktop = useMediaQuery("(min-width: 640px)");
 
   const isOwner = model?.isOwner ?? false;
@@ -370,6 +374,8 @@ function ModelDetailPage() {
                   isReadOnly={isReadOnly}
                   isFullScreen={isFullScreen}
                   onToggleFullScreen={() => setIsFullScreen(!isFullScreen)}
+                  onInterventionNodesChange={setInterventionNodes}
+                  toggleInterventionRef={toggleInterventionRef}
                 />
               </Panel>
 
@@ -387,6 +393,7 @@ function ModelDetailPage() {
                       key={selectedNode}
                       node={selectedNodeData}
                       allNodes={nodes}
+                      interventionNodes={interventionNodes ?? new Set()}
                       onClose={handleCloseSidebar}
                       onUpdate={(updates) => {
                         void (async () => {
@@ -422,6 +429,11 @@ function ModelDetailPage() {
                           }
                         })();
                       }}
+                      onToggleIntervention={
+                        selectedNode
+                          ? () => toggleInterventionRef.current?.(selectedNode)
+                          : undefined
+                      }
                       isReadOnly={isReadOnly}
                       isNewlyCreated={selectedNode === newlyCreatedNodeId}
                     />
@@ -727,6 +739,8 @@ function ModelDetailPage() {
                   isReadOnly={isReadOnly}
                   isFullScreen={isFullScreen}
                   onToggleFullScreen={() => setIsFullScreen(!isFullScreen)}
+                  onInterventionNodesChange={setInterventionNodes}
+                  toggleInterventionRef={toggleInterventionRef}
                 />
               </Panel>
 
@@ -744,6 +758,7 @@ function ModelDetailPage() {
                       key={selectedNode}
                       node={selectedNodeData}
                       allNodes={nodes}
+                      interventionNodes={interventionNodes ?? new Set()}
                       onClose={handleCloseSidebar}
                       onUpdate={(updates) => {
                         void (async () => {
@@ -779,6 +794,11 @@ function ModelDetailPage() {
                           }
                         })();
                       }}
+                      onToggleIntervention={
+                        selectedNode
+                          ? () => toggleInterventionRef.current?.(selectedNode)
+                          : undefined
+                      }
                       isReadOnly={isReadOnly}
                       isNewlyCreated={selectedNode === newlyCreatedNodeId}
                     />
@@ -797,6 +817,8 @@ function ModelDetailPage() {
                 isReadOnly={isReadOnly}
                 isFullScreen={isFullScreen}
                 onToggleFullScreen={() => setIsFullScreen(!isFullScreen)}
+                onInterventionNodesChange={setInterventionNodes}
+                toggleInterventionRef={toggleInterventionRef}
               />
             </div>
           )}
@@ -813,6 +835,7 @@ function ModelDetailPage() {
                   key={selectedNode}
                   node={selectedNodeData}
                   allNodes={nodes}
+                  interventionNodes={interventionNodes ?? new Set()}
                   onClose={handleCloseSidebar}
                   onUpdate={(updates) => {
                     void (async () => {
@@ -848,6 +871,11 @@ function ModelDetailPage() {
                       }
                     })();
                   }}
+                  onToggleIntervention={
+                    selectedNode
+                      ? () => toggleInterventionRef.current?.(selectedNode)
+                      : undefined
+                  }
                   isReadOnly={isReadOnly}
                   isNewlyCreated={selectedNode === newlyCreatedNodeId}
                 />
@@ -909,6 +937,29 @@ function ModelDetailPage() {
                   </ul>
                 </div>
               )}
+              <div>
+                <h4 className="font-semibold mb-2 mt-0">Sensitivity Analysis</h4>
+                <ul className="space-y-1 text-sm">
+                  <li>
+                    <kbd className="kbd kbd-sm">Ctrl</kbd>/
+                    <kbd className="kbd kbd-sm">Cmd</kbd> +{" "}
+                    <kbd className="kbd kbd-sm">Click</kbd> node → Toggle
+                    intervention status
+                  </li>
+                  <li>
+                    Intervention nodes (marked with "I" badge) are variables you
+                    can control to see how they affect other nodes
+                  </li>
+                  <li>
+                    Root nodes (nodes with no parents) are intervention nodes by
+                    default
+                  </li>
+                  <li>
+                    View sensitivity in the "Sensitivity" tab to see the impact of
+                    forcing each intervention node to true vs. false
+                  </li>
+                </ul>
+              </div>
               {!isReadOnly && (
                 <div>
                   <h4 className="font-semibold mb-2 mt-0">

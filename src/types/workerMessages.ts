@@ -19,25 +19,19 @@ export const computeMarginalsRequestSchema = z.object({
   type: z.literal("COMPUTE_MARGINALS"),
   requestId: z.string(),
   nodes: z.array(nodeSchema),
-});
-
-export const computeSensitivityRequestSchema = z.object({
-  type: z.literal("COMPUTE_SENSITIVITY"),
-  requestId: z.string(),
-  nodes: z.array(nodeSchema),
-  targetNodeId: nodeIdSchema,
+  interventionNodeId: nodeIdSchema.optional(),
 });
 
 export const marginalsResultSchema = z.object({
   type: z.literal("MARGINALS_RESULT"),
   requestId: z.string(),
-  probabilities: z.instanceof(Map),
-});
-
-export const sensitivityCompleteSchema = z.object({
-  type: z.literal("SENSITIVITY_COMPLETE"),
-  requestId: z.string(),
-  sensitivities: z.instanceof(Map),
+  probabilities: z.instanceof(Map).optional(),
+  interventionResult: z
+    .object({
+      trueCase: z.instanceof(Map),
+      falseCase: z.instanceof(Map),
+    })
+    .optional(),
 });
 
 export const errorMessageSchema = z.object({
@@ -48,12 +42,10 @@ export const errorMessageSchema = z.object({
 
 export const workerRequestSchema = z.discriminatedUnion("type", [
   computeMarginalsRequestSchema,
-  computeSensitivityRequestSchema,
 ]);
 
 export const workerResponseSchema = z.discriminatedUnion("type", [
   marginalsResultSchema,
-  sensitivityCompleteSchema,
   errorMessageSchema,
 ]);
 
@@ -62,9 +54,5 @@ export type WorkerResponse = z.infer<typeof workerResponseSchema>;
 export type ComputeMarginalsRequest = z.infer<
   typeof computeMarginalsRequestSchema
 >;
-export type ComputeSensitivityRequest = z.infer<
-  typeof computeSensitivityRequestSchema
->;
 export type MarginalsResult = z.infer<typeof marginalsResultSchema>;
-export type SensitivityComplete = z.infer<typeof sensitivityCompleteSchema>;
 export type ErrorMessage = z.infer<typeof errorMessageSchema>;

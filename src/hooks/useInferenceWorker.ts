@@ -3,16 +3,11 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { workerResponseSchema, type WorkerNode } from "../types/workerMessages";
 import { computeProbabilisticFingerprint } from "@/lib/probabilisticFingerprint";
 
-export interface SensitivityState {
-  isLoading: boolean;
-  results: Map<Id<"nodes">, number>;
-  error: string | null;
-}
-
 export interface MarginalsState {
   isLoading: boolean;
   probabilities: Map<Id<"nodes">, number>;
   error: string | null;
+  _updateCount: number;
 }
 
 const MAX_CACHE_SIZE = 100;
@@ -50,12 +45,26 @@ class LRUCache<K, V> {
 const marginalsCache = new LRUCache<string, Map<Id<"nodes">, number>>(
   MAX_CACHE_SIZE,
 );
-const sensitivityCache = new LRUCache<string, Map<Id<"nodes">, number>>(
-  MAX_CACHE_SIZE,
-);
 
 let sharedWorker: Worker | null = null;
 let sharedWorkerReady = false;
+
+type InterventionQueueItem = {
+  message: unknown;
+  cacheKey: string;
+  requestId: string;
+};
+let interventionQueue: InterventionQueueItem[] = [];
+let processingInterventionCacheKey: string | null = null;
+
+type CacheUpdateSubscriber = () => void;
+const cacheUpdateSubscribers = new Set<CacheUpdateSubscriber>();
+
+function notifyCacheUpdate(): void {
+  for (const subscriber of cacheUpdateSubscribers) {
+    subscriber();
+  }
+}
 
 function getSharedWorker(): Worker {
   if (!sharedWorker) {
@@ -75,25 +84,46 @@ function setSharedWorkerReady(): void {
   sharedWorkerReady = true;
 }
 
+function processNextIntervention(): void {
+  if (interventionQueue.length === 0 || processingInterventionCacheKey !== null || !sharedWorkerReady) {
+    return;
+  }
+  const next = interventionQueue.shift()!;
+  processingInterventionCacheKey = next.cacheKey;
+  sharedWorker?.postMessage(next.message);
+}
+
+function onInterventionComplete(): void {
+  processingInterventionCacheKey = null;
+  processNextIntervention();
+}
+
+type PendingRequest =
+  | { type: "baseline"; cacheKey: string }
+  | { type: "intervention"; cacheKey: string };
+
 export function useInferenceWorker() {
   const workerRef = useRef<Worker | null>(null);
   const workerReady = useRef(false);
   const messageQueue = useRef<Array<unknown>>([]);
-  const pendingMarginalsCacheKey = useRef<string | null>(null);
-  const pendingSensitivityCacheKey = useRef<string | null>(null);
-  const currentMarginalsRequestId = useRef<string | null>(null);
-  const currentSensitivityRequestId = useRef<string | null>(null);
+  const pendingRequests = useRef<Map<string, PendingRequest>>(new Map());
 
-  const [sensitivityState, setSensitivityState] = useState<SensitivityState>({
-    isLoading: false,
-    results: new Map(),
-    error: null,
-  });
   const [marginalsState, setMarginalsState] = useState<MarginalsState>({
     isLoading: false,
     probabilities: new Map(),
     error: null,
+    _updateCount: 0,
   });
+
+  useEffect(() => {
+    const subscriber = () => {
+      setMarginalsState((prev) => ({ ...prev, _updateCount: prev._updateCount + 1 }));
+    };
+    cacheUpdateSubscribers.add(subscriber);
+    return () => {
+      cacheUpdateSubscribers.delete(subscriber);
+    };
+  }, []);
 
   useEffect(() => {
     workerRef.current = getSharedWorker();
@@ -109,6 +139,7 @@ export function useInferenceWorker() {
             workerRef.current.postMessage(queued);
           }
         }
+        processNextIntervention();
         return;
       }
 
@@ -116,53 +147,46 @@ export function useInferenceWorker() {
         const message = workerResponseSchema.parse(event.data);
 
         if (message.type === "MARGINALS_RESULT") {
-          if (message.requestId !== currentMarginalsRequestId.current) return;
+          const pending = pendingRequests.current.get(message.requestId);
+          if (!pending) return;
 
-          if (pendingMarginalsCacheKey.current) {
+          if (pending.type === "baseline" && message.probabilities) {
             marginalsCache.set(
-              pendingMarginalsCacheKey.current,
+              pending.cacheKey,
               message.probabilities as Map<Id<"nodes">, number>,
             );
-            pendingMarginalsCacheKey.current = null;
-          }
-
-          setMarginalsState({
-            isLoading: false,
-            probabilities: message.probabilities as Map<Id<"nodes">, number>,
-            error: null,
-          });
-        } else if (message.type === "SENSITIVITY_COMPLETE") {
-          if (message.requestId !== currentSensitivityRequestId.current) return;
-
-          if (pendingSensitivityCacheKey.current) {
-            sensitivityCache.set(
-              pendingSensitivityCacheKey.current,
-              message.sensitivities as Map<Id<"nodes">, number>,
+            setMarginalsState((prev) => ({
+              isLoading: false,
+              probabilities: message.probabilities as Map<Id<"nodes">, number>,
+              error: null,
+              _updateCount: prev._updateCount + 1,
+            }));
+          } else if (pending.type === "intervention" && message.interventionResult) {
+            marginalsCache.set(
+              `${pending.cacheKey}:true`,
+              message.interventionResult.trueCase as Map<Id<"nodes">, number>,
             );
-            pendingSensitivityCacheKey.current = null;
+            marginalsCache.set(
+              `${pending.cacheKey}:false`,
+              message.interventionResult.falseCase as Map<Id<"nodes">, number>,
+            );
+            notifyCacheUpdate();
+            onInterventionComplete();
           }
 
-          setSensitivityState({
-            isLoading: false,
-            results: message.sensitivities as Map<Id<"nodes">, number>,
-            error: null,
-          });
+          pendingRequests.current.delete(message.requestId);
         } else if (message.type === "ERROR") {
-          if (message.requestId === currentMarginalsRequestId.current) {
-            pendingMarginalsCacheKey.current = null;
+          const pending = pendingRequests.current.get(message.requestId);
+          if (pending) {
+            pendingRequests.current.delete(message.requestId);
+            if (pending.type === "intervention") {
+              onInterventionComplete();
+            }
             setMarginalsState((prev) => ({
               ...prev,
               isLoading: false,
               error: message.error,
-            }));
-          } else if (
-            message.requestId === currentSensitivityRequestId.current
-          ) {
-            pendingSensitivityCacheKey.current = null;
-            setSensitivityState((prev) => ({
-              ...prev,
-              isLoading: false,
-              error: message.error,
+              _updateCount: prev._updateCount + 1,
             }));
           }
         }
@@ -172,17 +196,14 @@ export function useInferenceWorker() {
     };
 
     const handleError = (error: ErrorEvent) => {
-      pendingMarginalsCacheKey.current = null;
-      pendingSensitivityCacheKey.current = null;
+      pendingRequests.current.clear();
+      interventionQueue = [];
+      processingInterventionCacheKey = null;
       setMarginalsState((prev) => ({
         ...prev,
         isLoading: false,
         error: error.message,
-      }));
-      setSensitivityState((prev) => ({
-        ...prev,
-        isLoading: false,
-        error: error.message,
+        _updateCount: prev._updateCount + 1,
       }));
     };
 
@@ -195,90 +216,109 @@ export function useInferenceWorker() {
     };
   }, []);
 
-  const computeMarginals = useCallback((nodes: WorkerNode[]) => {
-    if (!workerRef.current) return;
-
-    const cacheKey = computeProbabilisticFingerprint(nodes);
-    const cached = marginalsCache.get(cacheKey);
-
-    if (cached) {
-      setMarginalsState({
-        isLoading: false,
-        probabilities: cached,
-        error: null,
-      });
-      return;
-    }
-
-    const requestId = crypto.randomUUID();
-    currentMarginalsRequestId.current = requestId;
-    pendingMarginalsCacheKey.current = cacheKey;
-
-    setMarginalsState((prev) => ({
-      ...prev,
-      isLoading: true,
-      error: null,
-    }));
-
-    const message = {
-      type: "COMPUTE_MARGINALS",
-      requestId,
-      nodes,
-    };
-
-    if (workerReady.current) {
-      workerRef.current.postMessage(message);
-    } else {
-      messageQueue.current.push(message);
-    }
-  }, []);
-
-  const computeSensitivity = useCallback(
-    (nodes: WorkerNode[], targetNodeId: Id<"nodes">) => {
+  const computeMarginals = useCallback(
+    (nodes: WorkerNode[], interventionNodeId?: Id<"nodes">) => {
       if (!workerRef.current) return;
 
-      const cacheKey = `${computeProbabilisticFingerprint(nodes)}:${targetNodeId}`;
-      const cached = sensitivityCache.get(cacheKey);
+      const fingerprint = computeProbabilisticFingerprint(nodes);
 
-      if (cached) {
-        setSensitivityState({
-          isLoading: false,
-          results: cached,
-          error: null,
+      if (interventionNodeId) {
+        const cacheKey = `${fingerprint}:${interventionNodeId}`;
+        const trueCacheKey = `${cacheKey}:true`;
+        const falseCacheKey = `${cacheKey}:false`;
+
+        const cachedTrue = marginalsCache.get(trueCacheKey);
+        const cachedFalse = marginalsCache.get(falseCacheKey);
+
+        if (cachedTrue && cachedFalse) {
+          return;
+        }
+
+        const alreadyQueued = interventionQueue.some(
+          (item) => item.cacheKey === cacheKey,
+        );
+        const alreadyProcessing = processingInterventionCacheKey === cacheKey;
+        if (alreadyQueued || alreadyProcessing) {
+          return;
+        }
+
+        const requestId = crypto.randomUUID();
+        pendingRequests.current.set(requestId, {
+          type: "intervention",
+          cacheKey,
         });
-        return;
-      }
 
-      const requestId = crypto.randomUUID();
-      currentSensitivityRequestId.current = requestId;
-      pendingSensitivityCacheKey.current = cacheKey;
+        const message = {
+          type: "COMPUTE_MARGINALS",
+          requestId,
+          nodes,
+          interventionNodeId,
+        };
 
-      setSensitivityState({
-        isLoading: true,
-        results: new Map(),
-        error: null,
-      });
-
-      const message = {
-        type: "COMPUTE_SENSITIVITY",
-        requestId,
-        nodes,
-        targetNodeId,
-      };
-
-      if (workerReady.current) {
-        workerRef.current.postMessage(message);
+        interventionQueue.push({
+          message,
+          cacheKey,
+          requestId,
+        });
+        processNextIntervention();
       } else {
-        messageQueue.current.push(message);
+        const cacheKey = `${fingerprint}:null`;
+        const cached = marginalsCache.get(cacheKey);
+
+        if (cached) {
+          setMarginalsState((prev) => ({
+            isLoading: false,
+            probabilities: cached,
+            error: null,
+            _updateCount: prev._updateCount + 1,
+          }));
+          return;
+        }
+
+        const requestId = crypto.randomUUID();
+        pendingRequests.current.set(requestId, { type: "baseline", cacheKey });
+
+        setMarginalsState((prev) => ({
+          ...prev,
+          isLoading: true,
+          error: null,
+        }));
+
+        const message = {
+          type: "COMPUTE_MARGINALS",
+          requestId,
+          nodes,
+        };
+
+        if (workerReady.current) {
+          workerRef.current.postMessage(message);
+        } else {
+          messageQueue.current.push(message);
+        }
       }
+    },
+    [],
+  );
+
+  const getCachedMarginals = useCallback(
+    (nodes: WorkerNode[], interventionNodeId?: Id<"nodes">, value?: boolean) => {
+      const fingerprint = computeProbabilisticFingerprint(nodes);
+      let cacheKey: string;
+
+      if (interventionNodeId !== undefined && value !== undefined) {
+        cacheKey = `${fingerprint}:${interventionNodeId}:${value}`;
+      } else {
+        cacheKey = `${fingerprint}:null`;
+      }
+
+      return marginalsCache.get(cacheKey);
     },
     [],
   );
 
   return {
     computeMarginals,
-    computeSensitivity,
-    sensitivityState,
+    getCachedMarginals,
     marginalsState,
   };
 }

@@ -45,6 +45,8 @@ export type Node = {
   columnOrder?: Id<"nodes">[];
 };
 
+export type ToggleInterventionFn = (nodeId: Id<"nodes">) => void;
+
 interface GraphEditorProps {
   modelId: Id<"models">;
   nodes: Node[];
@@ -53,19 +55,34 @@ interface GraphEditorProps {
   isReadOnly?: boolean;
   isFullScreen?: boolean;
   onToggleFullScreen?: () => void;
+  interventionNodes?: Set<Id<"nodes">>;
+  onInterventionNodesChange?: (nodes: Set<Id<"nodes">>) => void;
+  toggleInterventionRef?: React.MutableRefObject<ToggleInterventionFn | null>;
 }
 
 function ProbabilityNode({ data }: NodeProps) {
   const probability = data.probability as number | undefined;
   const label = data.label as string;
+  const isIntervention = data.isIntervention as boolean | undefined;
 
   return (
-    <div className="px-5 py-3 shadow-md rounded-lg bg-primary/15 border-2 border-base-300/70 transition-all duration-200 hover:shadow-lg hover:border-primary/30">
+    <div
+      className={`relative px-5 py-3 shadow-md rounded-lg bg-primary/15 border-2 transition-all duration-200 hover:shadow-lg ${
+        isIntervention
+          ? "border-accent shadow-accent/20"
+          : "border-base-300/70 hover:border-primary/30"
+      }`}
+    >
       <Handle
         type="target"
         position={Position.Top}
         className="!bg-accent !w-3 !h-3"
       />
+      {isIntervention && (
+        <div className="absolute -top-1 -right-1 badge badge-accent badge-xs">
+          I
+        </div>
+      )}
       <div className="text-center">
         <div className="font-medium text-base text-base-content leading-tight">
           {label}
@@ -97,6 +114,9 @@ export function GraphEditor({
   isReadOnly,
   isFullScreen,
   onToggleFullScreen,
+  interventionNodes: externalInterventionNodes,
+  onInterventionNodesChange,
+  toggleInterventionRef,
 }: GraphEditorProps) {
   return (
     <ReactFlowProvider>
@@ -108,6 +128,9 @@ export function GraphEditor({
         isReadOnly={isReadOnly}
         isFullScreen={isFullScreen}
         onToggleFullScreen={onToggleFullScreen}
+        interventionNodes={externalInterventionNodes}
+        onInterventionNodesChange={onInterventionNodesChange}
+        toggleInterventionRef={toggleInterventionRef}
       />
     </ReactFlowProvider>
   );
@@ -121,6 +144,8 @@ function GraphEditorInner({
   isReadOnly = false,
   isFullScreen = false,
   onToggleFullScreen,
+  onInterventionNodesChange,
+  toggleInterventionRef,
 }: GraphEditorProps) {
   const { screenToFlowPosition } = useReactFlow();
   const { showError, showSuccess } = useToast();
@@ -209,6 +234,82 @@ function GraphEditorInner({
   const dbNodesRef = useRef(dbNodes);
   dbNodesRef.current = dbNodes;
 
+  const rootNodeIds = useMemo(() => {
+    return new Set(
+      dbNodes
+        .filter((node) =>
+          node.cptEntries.every(
+            (entry) => Object.keys(entry.parentStates).length === 0
+          )
+        )
+        .map((node) => node._id)
+    );
+  }, [dbNodes]);
+
+  const [userMarks, setUserMarks] = useState<{
+    marked: Set<Id<"nodes">>;
+    unmarked: Set<Id<"nodes">>;
+  }>(() => {
+    const nodeIds = new Set(dbNodes.map((n) => n._id));
+    const stored = localStorage.getItem(`interventionMarks-${modelId}`);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as { marked: Id<"nodes">[]; unmarked: Id<"nodes">[] };
+        return {
+          marked: new Set(parsed.marked.filter((id) => nodeIds.has(id))),
+          unmarked: new Set(parsed.unmarked.filter((id) => nodeIds.has(id))),
+        };
+      } catch {
+        return { marked: new Set(), unmarked: new Set() };
+      }
+    }
+    return { marked: new Set(), unmarked: new Set() };
+  });
+
+  const interventionNodes = useMemo(() => {
+    const effective = new Set<Id<"nodes">>();
+    for (const id of userMarks.marked) {
+      effective.add(id);
+    }
+    for (const id of rootNodeIds) {
+      if (!userMarks.unmarked.has(id)) {
+        effective.add(id);
+      }
+    }
+    return effective;
+  }, [userMarks, rootNodeIds]);
+
+  const prevInterventionNodesRef = useRef<Set<Id<"nodes">> | null>(null);
+  useEffect(() => {
+    if (onInterventionNodesChange) {
+      const prev = prevInterventionNodesRef.current;
+      if (prev === null) {
+        onInterventionNodesChange(interventionNodes);
+      } else {
+        const setsEqual = interventionNodes.size === prev.size &&
+          Array.from(interventionNodes).every(id => prev.has(id));
+        if (!setsEqual) {
+          onInterventionNodesChange(interventionNodes);
+        }
+      }
+    }
+    prevInterventionNodesRef.current = interventionNodes;
+  }, [interventionNodes, onInterventionNodesChange]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        `interventionMarks-${modelId}`,
+        JSON.stringify({
+          marked: Array.from(userMarks.marked),
+          unmarked: Array.from(userMarks.unmarked),
+        }),
+      );
+    } catch {
+      // Storage unavailable (private browsing, quota exceeded)
+    }
+  }, [userMarks, modelId]);
+
   const probabilisticFingerprint = useMemo(
     () => computeProbabilisticFingerprint(dbNodes),
     [dbNodes],
@@ -217,6 +318,12 @@ function GraphEditorInner({
   useEffect(() => {
     computeMarginals(dbNodesRef.current);
   }, [probabilisticFingerprint, computeMarginals]);
+
+  useEffect(() => {
+    for (const interventionNodeId of interventionNodes) {
+      computeMarginals(dbNodesRef.current, interventionNodeId);
+    }
+  }, [probabilisticFingerprint, interventionNodes, computeMarginals]);
 
   useEffect(() => {
     if (marginalsState.error) {
@@ -232,6 +339,7 @@ function GraphEditorInner({
     data: {
       label: node.title,
       probability: marginalsState.probabilities.get(node._id),
+      isIntervention: interventionNodes.has(node._id),
     },
   }));
 
@@ -250,6 +358,51 @@ function GraphEditorInner({
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  const toggleIntervention = useCallback(
+    (nodeId: Id<"nodes">) => {
+      const isCurrentlyIntervention = interventionNodes.has(nodeId);
+      const isRootNode = rootNodeIds.has(nodeId);
+
+      setUserMarks((prev) => {
+        const nextMarked = new Set(prev.marked);
+        const nextUnmarked = new Set(prev.unmarked);
+
+        if (isCurrentlyIntervention) {
+          if (isRootNode) {
+            nextUnmarked.add(nodeId);
+          }
+          nextMarked.delete(nodeId);
+        } else {
+          nextMarked.add(nodeId);
+          nextUnmarked.delete(nodeId);
+        }
+
+        return { marked: nextMarked, unmarked: nextUnmarked };
+      });
+
+      setNodes((currentNodes) =>
+        currentNodes.map((n) =>
+          n.id === nodeId
+            ? {
+                ...n,
+                data: {
+                  ...n.data,
+                  isIntervention: !isCurrentlyIntervention,
+                },
+              }
+            : n,
+        ),
+      );
+    },
+    [interventionNodes, rootNodeIds, setNodes],
+  );
+
+  useEffect(() => {
+    if (toggleInterventionRef) {
+      toggleInterventionRef.current = toggleIntervention;
+    }
+  }, [toggleInterventionRef, toggleIntervention]);
 
   useEffect(() => {
     setNodes((currentNodes) => {
@@ -272,26 +425,29 @@ function GraphEditorInner({
             data: {
               label: dbNode.title,
               probability: marginalsState.probabilities.get(dbNode._id),
+              isIntervention: interventionNodes.has(dbNode._id),
             },
           });
         }
       }
 
-      // Update node labels, probabilities, and selection state (but not positions)
+      // Update node labels, probabilities, selection state, and intervention status
       updatedNodes = updatedNodes.map((node) => {
         const dbNode = dbNodes.find((n) => n._id === node.id);
         const nodeId = node.id as Id<"nodes">;
         const probability = marginalsState.probabilities.get(nodeId);
         const isSelected = nodeId === selectedNode;
+        const isIntervention = interventionNodes.has(nodeId);
         if (
           dbNode &&
           (dbNode.title !== node.data.label ||
             probability !== node.data.probability ||
-            node.selected !== isSelected)
+            node.selected !== isSelected ||
+            node.data.isIntervention !== isIntervention)
         ) {
           return {
             ...node,
-            data: { label: dbNode.title, probability },
+            data: { label: dbNode.title, probability, isIntervention },
             selected: isSelected,
           };
         }
@@ -314,7 +470,7 @@ function GraphEditorInner({
       }));
     });
     setEdges(newEdges);
-  }, [dbNodes, marginalsState.probabilities, selectedNode, setNodes, setEdges]);
+  }, [dbNodes, marginalsState.probabilities, selectedNode, setNodes, setEdges, interventionNodes]);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -534,10 +690,16 @@ function GraphEditorInner({
   );
 
   const onNodeClick = useCallback(
-    (_event: React.MouseEvent, node: FlowNode) => {
-      onNodeSelect(node.id as Id<"nodes">);
+    (event: React.MouseEvent, node: FlowNode) => {
+      if (event.metaKey || event.ctrlKey) {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleIntervention(node.id as Id<"nodes">);
+      } else {
+        onNodeSelect(node.id as Id<"nodes">);
+      }
     },
-    [onNodeSelect],
+    [onNodeSelect, toggleIntervention],
   );
 
   return (
@@ -629,6 +791,7 @@ function GraphEditorInner({
 export interface NodeInspectorProps {
   node: Node;
   allNodes: Node[];
+  interventionNodes: Set<Id<"nodes">>;
   onClose: () => void;
   onUpdate: (updates: {
     title?: string;
@@ -640,6 +803,7 @@ export interface NodeInspectorProps {
     columnOrder?: Id<"nodes">[];
   }) => void;
   onDelete: () => void;
+  onToggleIntervention?: () => void;
   isReadOnly?: boolean;
   isNewlyCreated?: boolean;
 }
@@ -647,9 +811,11 @@ export interface NodeInspectorProps {
 export function NodeInspector({
   node,
   allNodes,
+  interventionNodes,
   onClose,
   onUpdate,
   onDelete,
+  onToggleIntervention,
   isReadOnly = false,
   isNewlyCreated = false,
 }: NodeInspectorProps) {
@@ -838,6 +1004,21 @@ export function NodeInspector({
               </>
             )}
 
+            {onToggleIntervention && (
+              <label
+                className="flex items-center gap-3 cursor-pointer py-1 w-fit tooltip tooltip-bottom before:max-w-40 before:whitespace-normal before:text-left"
+                data-tip="Used in sensitivity analysis to measure how setting this node true vs false affects others"
+              >
+                <input
+                  type="checkbox"
+                  className="toggle toggle-sm toggle-primary"
+                  checked={interventionNodes.has(node._id)}
+                  onChange={onToggleIntervention}
+                />
+                <span className="text-sm">Intervention node</span>
+              </label>
+            )}
+
             <CPTEditor
               cptEntries={cptEntries}
               parentNodes={parentNodes}
@@ -881,7 +1062,11 @@ export function NodeInspector({
           </form>
         ) : (
           <div className="flex-1 px-1">
-            <SensitivityPanel nodes={allNodes} targetNodeId={node._id} />
+            <SensitivityPanel
+              nodes={allNodes}
+              targetNodeId={node._id}
+              interventionNodes={interventionNodes}
+            />
           </div>
         )}
       </div>
