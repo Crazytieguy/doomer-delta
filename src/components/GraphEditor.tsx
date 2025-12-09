@@ -47,6 +47,11 @@ export type Node = {
 
 export type ToggleInterventionFn = (nodeId: Id<"nodes">) => void;
 
+export interface UserMarks {
+  marked: Set<Id<"nodes">>;
+  unmarked: Set<Id<"nodes">>;
+}
+
 interface GraphEditorProps {
   modelId: Id<"models">;
   nodes: Node[];
@@ -58,6 +63,8 @@ interface GraphEditorProps {
   interventionNodes?: Set<Id<"nodes">>;
   onInterventionNodesChange?: (nodes: Set<Id<"nodes">>) => void;
   toggleInterventionRef?: React.MutableRefObject<ToggleInterventionFn | null>;
+  userMarks: UserMarks;
+  onUserMarksChange: (marks: UserMarks) => void;
 }
 
 function ProbabilityNode({ data }: NodeProps) {
@@ -117,6 +124,8 @@ export function GraphEditor({
   interventionNodes: externalInterventionNodes,
   onInterventionNodesChange,
   toggleInterventionRef,
+  userMarks,
+  onUserMarksChange,
 }: GraphEditorProps) {
   return (
     <ReactFlowProvider>
@@ -131,6 +140,8 @@ export function GraphEditor({
         interventionNodes={externalInterventionNodes}
         onInterventionNodesChange={onInterventionNodesChange}
         toggleInterventionRef={toggleInterventionRef}
+        userMarks={userMarks}
+        onUserMarksChange={onUserMarksChange}
       />
     </ReactFlowProvider>
   );
@@ -146,6 +157,8 @@ function GraphEditorInner({
   onToggleFullScreen,
   onInterventionNodesChange,
   toggleInterventionRef,
+  userMarks,
+  onUserMarksChange,
 }: GraphEditorProps) {
   const { screenToFlowPosition } = useReactFlow();
   const { showError, showSuccess } = useToast();
@@ -246,26 +259,6 @@ function GraphEditorInner({
     );
   }, [dbNodes]);
 
-  const [userMarks, setUserMarks] = useState<{
-    marked: Set<Id<"nodes">>;
-    unmarked: Set<Id<"nodes">>;
-  }>(() => {
-    const nodeIds = new Set(dbNodes.map((n) => n._id));
-    const stored = localStorage.getItem(`interventionMarks-${modelId}`);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as { marked: Id<"nodes">[]; unmarked: Id<"nodes">[] };
-        return {
-          marked: new Set(parsed.marked.filter((id) => nodeIds.has(id))),
-          unmarked: new Set(parsed.unmarked.filter((id) => nodeIds.has(id))),
-        };
-      } catch {
-        return { marked: new Set(), unmarked: new Set() };
-      }
-    }
-    return { marked: new Set(), unmarked: new Set() };
-  });
-
   const interventionNodes = useMemo(() => {
     const effective = new Set<Id<"nodes">>();
     for (const id of userMarks.marked) {
@@ -295,20 +288,6 @@ function GraphEditorInner({
     }
     prevInterventionNodesRef.current = interventionNodes;
   }, [interventionNodes, onInterventionNodesChange]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        `interventionMarks-${modelId}`,
-        JSON.stringify({
-          marked: Array.from(userMarks.marked),
-          unmarked: Array.from(userMarks.unmarked),
-        }),
-      );
-    } catch {
-      // Storage unavailable (private browsing, quota exceeded)
-    }
-  }, [userMarks, modelId]);
 
   const probabilisticFingerprint = useMemo(
     () => computeProbabilisticFingerprint(dbNodes),
@@ -364,22 +343,20 @@ function GraphEditorInner({
       const isCurrentlyIntervention = interventionNodes.has(nodeId);
       const isRootNode = rootNodeIds.has(nodeId);
 
-      setUserMarks((prev) => {
-        const nextMarked = new Set(prev.marked);
-        const nextUnmarked = new Set(prev.unmarked);
+      const nextMarked = new Set(userMarks.marked);
+      const nextUnmarked = new Set(userMarks.unmarked);
 
-        if (isCurrentlyIntervention) {
-          if (isRootNode) {
-            nextUnmarked.add(nodeId);
-          }
-          nextMarked.delete(nodeId);
-        } else {
-          nextMarked.add(nodeId);
-          nextUnmarked.delete(nodeId);
+      if (isCurrentlyIntervention) {
+        if (isRootNode) {
+          nextUnmarked.add(nodeId);
         }
+        nextMarked.delete(nodeId);
+      } else {
+        nextMarked.add(nodeId);
+        nextUnmarked.delete(nodeId);
+      }
 
-        return { marked: nextMarked, unmarked: nextUnmarked };
-      });
+      onUserMarksChange({ marked: nextMarked, unmarked: nextUnmarked });
 
       setNodes((currentNodes) =>
         currentNodes.map((n) =>
@@ -395,7 +372,7 @@ function GraphEditorInner({
         ),
       );
     },
-    [interventionNodes, rootNodeIds, setNodes],
+    [interventionNodes, rootNodeIds, userMarks, onUserMarksChange, setNodes],
   );
 
   useEffect(() => {
@@ -431,7 +408,7 @@ function GraphEditorInner({
         }
       }
 
-      // Update node labels, probabilities, selection state, and intervention status
+      // Update node labels, probabilities, positions, selection state, and intervention status
       updatedNodes = updatedNodes.map((node) => {
         const dbNode = dbNodes.find((n) => n._id === node.id);
         const nodeId = node.id as Id<"nodes">;
@@ -443,10 +420,13 @@ function GraphEditorInner({
           (dbNode.title !== node.data.label ||
             probability !== node.data.probability ||
             node.selected !== isSelected ||
-            node.data.isIntervention !== isIntervention)
+            node.data.isIntervention !== isIntervention ||
+            dbNode.x !== node.position.x ||
+            dbNode.y !== node.position.y)
         ) {
           return {
             ...node,
+            position: { x: dbNode.x, y: dbNode.y },
             data: { label: dbNode.title, probability, isIntervention },
             selected: isSelected,
           };

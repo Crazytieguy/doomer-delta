@@ -21,7 +21,7 @@ import {
   DeleteModelDialog,
   type DeleteModelDialogRef,
 } from "../components/DeleteModelDialog";
-import { GraphEditor, NodeInspector, type ToggleInterventionFn } from "../components/GraphEditor";
+import { GraphEditor, NodeInspector, type ToggleInterventionFn, type UserMarks } from "../components/GraphEditor";
 import { ShareDialog, type ShareDialogRef } from "../components/ShareDialog";
 import { useToast } from "../components/ToastContext";
 
@@ -197,10 +197,64 @@ function ModelDetailPage() {
   const [interventionNodes, setInterventionNodes] = useState<
     Set<Id<"nodes">> | undefined
   >(undefined);
+  const [userMarks, setUserMarks] = useState<UserMarks>(() => {
+    const nodeIds = new Set(nodes.map((n) => n._id));
+    const stored = localStorage.getItem(`interventionMarks-${modelId}`);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as { marked: Id<"nodes">[]; unmarked: Id<"nodes">[] };
+        return {
+          marked: new Set(parsed.marked.filter((id) => nodeIds.has(id))),
+          unmarked: new Set(parsed.unmarked.filter((id) => nodeIds.has(id))),
+        };
+      } catch {
+        return { marked: new Set(), unmarked: new Set() };
+      }
+    }
+    return { marked: new Set(), unmarked: new Set() };
+  });
   const shareDialogRef = useRef<ShareDialogRef>(null);
   const deleteDialogRef = useRef<DeleteModelDialogRef>(null);
   const toggleInterventionRef = useRef<ToggleInterventionFn | null>(null);
   const isDesktop = useMediaQuery("(min-width: 640px)");
+
+  // Sync userMarks to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        `interventionMarks-${modelId}`,
+        JSON.stringify({
+          marked: Array.from(userMarks.marked),
+          unmarked: Array.from(userMarks.unmarked),
+        }),
+      );
+    } catch {
+      // Storage unavailable (private browsing, quota exceeded)
+    }
+  }, [userMarks, modelId]);
+
+  // Re-initialize userMarks when modelId changes (e.g., after forking)
+  const prevModelIdRef = useRef(modelId);
+  useEffect(() => {
+    if (prevModelIdRef.current !== modelId) {
+      prevModelIdRef.current = modelId;
+      const nodeIds = new Set(nodes.map((n) => n._id));
+      const stored = localStorage.getItem(`interventionMarks-${modelId}`);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored) as { marked: Id<"nodes">[]; unmarked: Id<"nodes">[] };
+          setUserMarks({
+            marked: new Set(parsed.marked.filter((id) => nodeIds.has(id))),
+            unmarked: new Set(parsed.unmarked.filter((id) => nodeIds.has(id))),
+          });
+        } catch {
+          setUserMarks({ marked: new Set(), unmarked: new Set() });
+        }
+      } else {
+        setUserMarks({ marked: new Set(), unmarked: new Set() });
+      }
+    }
+  }, [modelId, nodes]);
 
   const isOwner = model?.isOwner ?? false;
   const isReadOnly = !isOwner;
@@ -376,6 +430,8 @@ function ModelDetailPage() {
                   onToggleFullScreen={() => setIsFullScreen(!isFullScreen)}
                   onInterventionNodesChange={setInterventionNodes}
                   toggleInterventionRef={toggleInterventionRef}
+                  userMarks={userMarks}
+                  onUserMarksChange={setUserMarks}
                 />
               </Panel>
 
@@ -741,6 +797,8 @@ function ModelDetailPage() {
                   onToggleFullScreen={() => setIsFullScreen(!isFullScreen)}
                   onInterventionNodesChange={setInterventionNodes}
                   toggleInterventionRef={toggleInterventionRef}
+                  userMarks={userMarks}
+                  onUserMarksChange={setUserMarks}
                 />
               </Panel>
 
@@ -819,6 +877,8 @@ function ModelDetailPage() {
                 onToggleFullScreen={() => setIsFullScreen(!isFullScreen)}
                 onInterventionNodesChange={setInterventionNodes}
                 toggleInterventionRef={toggleInterventionRef}
+                userMarks={userMarks}
+                onUserMarksChange={setUserMarks}
               />
             </div>
           )}
